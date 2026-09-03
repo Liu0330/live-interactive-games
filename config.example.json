@@ -1,0 +1,7 @@
+{
+  "siliconflow_api_key": "",
+  "chat_model": "deepseek-ai/DeepSeek-V3",
+  "embed_model": "BAAI/bge-m3",
+  "douyin_room_id": "",
+  "active_game": "semantic"
+}

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>直播互动玩法</title>
+  <script>
+    const h = (location.hash || "").replace(/^#/, "");
+    if (h === "/overlay" || h === "overlay") location.replace("/overlay");
+    else location.replace("/control");
+  </script>
+</head>
+<body>
+  <p><a href="/control">控制台</a> · <a href="/overlay">游戏画面</a></p>
+</body>
+</html>
