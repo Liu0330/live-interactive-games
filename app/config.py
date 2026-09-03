@@ -123,6 +123,24 @@ def save_config(partial: dict[str, Any]) -> dict[str, Any]:
     return deepcopy(merged)
 
 
+def scoring_info(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    data = cfg or load_config()
+    has_key = bool((data.get("siliconflow_api_key") or "").strip())
+    if has_key:
+        return {
+            "has_api_key": True,
+            "scoring_mode": "siliconflow_embed",
+            "scoring_mode_label": "硅基流动向量",
+            "scoring_mode_detail": "向量相似度与本地拼音/字面取较高值，谐音不会丢",
+        }
+    return {
+        "has_api_key": False,
+        "scoring_mode": "local_pinyin",
+        "scoring_mode_label": "本地拼音+字面",
+        "scoring_mode_detail": "未配置 API Key，谐音、相关词表与字形离线计分",
+    }
+
+
 def public_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     data = deepcopy(cfg or load_config())
     key = data.get("siliconflow_api_key") or ""
@@ -130,6 +148,7 @@ def public_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     data["siliconflow_api_key_masked"] = _mask_key(key)
     data.pop("siliconflow_api_key", None)
     data["chat_models"] = CHAT_MODELS
+    data.update(scoring_info(cfg or load_config()))
     return data
 
 

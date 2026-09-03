@@ -128,7 +128,9 @@ def embed_similarity(guess: str, secret: str) -> float:
     try:
         vecs = embed_texts([guess, secret])
         if len(vecs) == 2 and vecs[0] and vecs[1]:
-            return embedding_percent(vecs[0], vecs[1])
+            from app.games.similarity import blend_score
+
+            return blend_score(local_similarity(guess, secret), embedding_percent(vecs[0], vecs[1]))
     except Exception:
         pass
     return local_similarity(guess, secret)

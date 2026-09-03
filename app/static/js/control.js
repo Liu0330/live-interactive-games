@@ -34,6 +34,7 @@ function fillConfig(cfg) {
   $("bombMax").value = (cfg.bomb || {}).max_value ?? 100;
   $("lotKeyword").value = (cfg.lottery || {}).keyword || "抽奖";
   renderIngest(cfg.ingest || {});
+  renderScoring(cfg);
 }
 
 function renderIngest(st) {
@@ -49,10 +50,20 @@ function renderWords(words) {
   )).join("");
 }
 
+function renderScoring(info) {
+  const el = $("scoringMode");
+  if (!el) return;
+  const label = info.scoring_mode_label || "本地拼音+字面";
+  const missing = info.has_api_key ? "" : "（未配置 API Key）";
+  const detail = info.scoring_mode_detail ? ` · ${info.scoring_mode_detail}` : "";
+  el.textContent = `计分方式：${label}${missing}${detail}`;
+}
+
 function renderState(state) {
   const host = (state && state.host) || {};
   $("hostStatus").textContent = host.status_text || "等待开启回合…";
   if (state && state.game) $("gamePicker").value = state.game;
+  if (state) renderScoring(state);
 }
 
 async function refreshAll() {

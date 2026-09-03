@@ -47,6 +47,7 @@
       <section class="card wide">
         <h2>实时状态</h2>
         <div class="status-box" id="hostStatus">等待开启回合…</div>
+        <p class="hint" id="scoringMode">计分方式：本地拼音+字面（未配置 API Key）</p>
       </section>
 
       <section class="card">
@@ -99,7 +100,7 @@
           <button class="btn" id="genWords">AI 生成并入库</button>
           <button class="btn ghost" id="genQuiz">生成题目</button>
         </div>
-        <p class="hint" id="aiHint">未配置密钥时，语义相似度走本地算法，模拟玩法可离线进行。</p>
+        <p class="hint" id="aiHint">未配置密钥时走「本地拼音+字面」；有密钥后为「硅基流动向量」，并与谐音分取高。</p>
       </section>
 
       <section class="card">

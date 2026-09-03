@@ -8,19 +8,19 @@ from app.bus import ChatEvent
 from app.config import load_config
 from app.db import add_points
 from app.games.base import BaseGame
-from app.games.similarity import is_usable_guess, local_similarity, normalize_word, rank_guesses
+from app.games.similarity import (
+    blend_score,
+    hint_neighbors,
+    is_usable_guess,
+    local_similarity,
+    normalize_word,
+    rank_guesses,
+)
 from app.games.wordbank import answer_len_label, classify_word, load_common_guesses, pick_word
-
-# wordbank may not have load_related_hints yet - I'll add it or define locally
 
 
 def _hint_candidates(secret: str) -> list[str]:
-    from app.games.similarity import load_related_table
-
-    table = load_related_table()
-    related = table.get(normalize_word(secret), {})
-    ranked = sorted(related.items(), key=lambda kv: -kv[1])
-    return [w for w, _ in ranked if w != normalize_word(secret)]
+    return hint_neighbors(secret)
 
 
 class SemanticGame(BaseGame):
@@ -101,10 +101,6 @@ class SemanticGame(BaseGame):
             if word not in self.hints and word != normalize_word(self.secret):
                 self.hints.append(word)
                 return True
-        extras = [w for w in load_common_guesses() if w != self.secret and w not in self.hints]
-        if extras:
-            self.hints.append(random.choice(extras))
-            return True
         return False
 
     def score_word(self, word: str) -> float:
@@ -112,12 +108,13 @@ class SemanticGame(BaseGame):
         secret = normalize_word(self.secret)
         if not word:
             return 0.0
+        local = local_similarity(word, secret)
         if self.embed_fn:
             try:
-                return float(self.embed_fn(word, secret))
+                return blend_score(local, float(self.embed_fn(word, secret)))
             except Exception:
-                pass
-        return local_similarity(word, secret)
+                return local
+        return local
 
     def _record_guess(self, nickname: str, user_id: str, word: str, score: float, via: str = "chat") -> dict:
         self.seq += 1
@@ -224,11 +221,16 @@ class SemanticGame(BaseGame):
         }
 
     def host_state(self) -> dict[str, Any]:
+        from app.config import scoring_info
+
         playing = "playing" if self.status == "playing" else self.status
         secret = self.secret or "—"
+        info = scoring_info()
         return {
             "secret": self.secret,
             "status_text": f"当前回合正在 {playing} - 词语是 [ {secret} ]",
+            "scoring_mode": info["scoring_mode"],
+            "scoring_mode_label": info["scoring_mode_label"],
         }
 
 

@@ -103,6 +103,8 @@ class GameManager:
             cfg.get("rank_names"),
             int(cfg.get("points_per_sublevel") or 180),
         )
+        from app.config import scoring_info
+
         public.update(
             {
                 "game": self.active_id,
@@ -112,6 +114,7 @@ class GameManager:
                 "announce_seq": self.announce_seq,
                 "tts_enabled": bool(cfg.get("tts_enabled", True)),
                 "now": time.time(),
+                **scoring_info(cfg),
             }
         )
         if host:
