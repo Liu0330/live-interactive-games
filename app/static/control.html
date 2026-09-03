@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>控制台 · 直播互动玩法</title>
+  <link rel="stylesheet" href="/static/css/shared.css">
+  <link rel="stylesheet" href="/static/css/control.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1>直播互动 <span>控制台</span></h1>
+        <div class="sub">本机地址 http://127.0.0.1:8000/control · 游戏画面 /overlay</div>
+      </div>
+      <div class="row btns">
+        <button class="btn green" id="openOverlay">打开游戏界面</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2>玩法切换</h2>
+        <label class="field">当前玩法</label>
+        <select id="gamePicker">
+          <option value="semantic">语义猜词</option>
+          <option value="quiz">弹幕答题</option>
+          <option value="bomb">数字炸弹</option>
+          <option value="lottery">弹幕抽奖</option>
+        </select>
+        <p class="hint">切换后无需重启服务，点「开启新回合」即可。</p>
+      </section>
+
+      <section class="card">
+        <h2>抖音直播间直连</h2>
+        <label class="field">房间号（live.douyin.com/后面的数字）</label>
+        <input id="roomId" placeholder="例如 123456789012">
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn" id="connectRoom">开始直连</button>
+          <button class="btn ghost" id="disconnectRoom">断开</button>
+        </div>
+        <p class="hint" id="ingestStatus"><span class="dot"></span>未连接，可先用模拟弹幕联调</p>
+      </section>
+
+      <section class="card wide">
+        <h2>实时状态</h2>
+        <div class="status-box" id="hostStatus">等待开启回合…</div>
+        <p class="hint" id="scoringMode">计分方式：本地拼音+字面（未配置 API Key）</p>
+      </section>
+
+      <section class="card">
+        <h2>手动控制</h2>
+        <label class="field">指定谜底 / 题目关键字 / 炸弹数字 / 抽奖口令（可空）</label>
+        <input id="specified" placeholder="留空则随机">
+        <div class="row btns" style="margin-top:12px">
+          <button class="btn" id="startRound">开启新回合</button>
+          <button class="btn ghost" id="skipRound">跳过当前</button>
+          <button class="btn red" id="clearBoard">清空积分榜</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>模拟弹幕 / 礼物（联调用）</h2>
+        <label class="field">昵称</label>
+        <input id="mockName" value="测试观众">
+        <label class="field">猜词内容</label>
+        <input id="mockText" placeholder="输入弹幕">
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn" id="sendChat">发弹幕</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <select id="giftName">
+            <option>小心心</option>
+            <option>大啤酒</option>
+            <option>鲜花</option>
+            <option>你最好看</option>
+            <option>点赞</option>
+          </select>
+          <input id="giftCount" type="number" value="1" min="1">
+          <button class="btn" id="sendGift">送礼</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>AI 生成词库 · 硅基流动</h2>
+        <label class="field">API Key</label>
+        <input id="apiKey" type="password" placeholder="sk- 开头，仅保存在本机 data/config.json">
+        <label class="field">对话模型</label>
+        <select id="chatModel"></select>
+        <label class="field">生成数量</label>
+        <input id="genCount" type="number" value="50" min="5" max="80">
+        <label class="field">主题（可选，如 动物 / 食物 / 四字成语）</label>
+        <input id="genTheme" placeholder="日常生活">
+        <label class="field"><input id="overwrite" type="checkbox" style="width:auto"> 覆盖现有</label>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn ghost" id="saveKey">保存密钥</button>
+          <button class="btn ghost" id="testKey">测试连接</button>
+          <button class="btn" id="genWords">AI 生成并入库</button>
+          <button class="btn ghost" id="genQuiz">生成题目</button>
+        </div>
+        <p class="hint" id="aiHint">未配置密钥时走「本地拼音+字面」；有密钥后为「硅基流动向量」，并与谐音分取高。</p>
+      </section>
+
+      <section class="card">
+        <h2>积分段位</h2>
+        <label class="field">升一小段所需积分</label>
+        <input id="perSub" type="number" value="180">
+        <label class="field">段位名称（每行一个，每段 5 小级）</label>
+        <textarea id="rankNames"></textarea>
+        <button class="btn" id="saveRanks" style="margin-top:10px">保存</button>
+      </section>
+
+      <section class="card">
+        <h2>玩法参数</h2>
+        <label class="field">猜词倒计时（秒）</label>
+        <input id="semCountdown" type="number">
+        <label class="field">命中阈值（%）</label>
+        <input id="semThreshold" type="number">
+        <label class="field">提示间隔（秒） / 每局提示数</label>
+        <div class="row">
+          <input id="semHintInterval" type="number">
+          <input id="semHints" type="number">
+        </div>
+        <label class="field">答题倒计时 / 炸弹范围 / 抽奖口令</label>
+        <div class="row">
+          <input id="quizCountdown" type="number" placeholder="答题秒">
+          <input id="bombMax" type="number" placeholder="炸弹最大">
+          <input id="lotKeyword" placeholder="抽奖">
+        </div>
+        <button class="btn" id="saveParams" style="margin-top:10px">保存参数</button>
+      </section>
+
+      <section class="card wide">
+        <h2 id="wordTitle">谜底词库</h2>
+        <div class="row">
+          <input id="newWord" placeholder="手动添加词语">
+          <button class="btn sm" id="addWord">添加</button>
+        </div>
+        <div class="tags" id="wordTags"></div>
+      </section>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="/static/js/control.js"></script>
+</body>
+</html>
