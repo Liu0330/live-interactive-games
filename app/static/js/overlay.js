@@ -51,6 +51,9 @@ function renderGifts(rules) {
 }
 
 function renderGuesses(list) {
+  if (!list || !list.length) {
+    return `<div class="empty">观众发弹幕开始猜词</div>`;
+  }
   return (list || []).map((g) => `
     <div class="guess">
       <div class="barfill" style="width:${Math.min(100, g.score)}%"></div>
@@ -64,6 +67,9 @@ function renderGuesses(list) {
 }
 
 function renderBoard(list) {
+  if (!list || !list.length) {
+    return `<div class="empty">暂无积分</div>`;
+  }
   return (list || []).map((s) => `
     <div class="score">
       <div class="medal">${medal(s.place)}</div>

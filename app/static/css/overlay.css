@@ -85,6 +85,12 @@ html, body {
   color: #f4efe6;
 }
 .list { flex: 1; overflow: hidden; }
+.empty {
+  text-align: center;
+  color: #7f8ba3;
+  font-size: 24px;
+  padding: 28px 8px;
+}
 .guess, .score {
   display: flex;
   align-items: center;

@@ -88,8 +88,12 @@ $("sendChat").onclick = async () => {
   try {
     await api("/api/mock/chat", { nickname: $("mockName").value, content: $("mockText").value });
     $("mockText").value = "";
+    toast("弹幕已发送");
   } catch (e) { toast(e.message); }
 };
+$("mockText").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") $("sendChat").click();
+});
 $("sendGift").onclick = async () => {
   await api("/api/mock/gift", {
     nickname: $("mockName").value,

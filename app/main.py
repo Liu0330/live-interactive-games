@@ -141,6 +141,11 @@ async def _capture_loop() -> None:
     _main_loop = asyncio.get_running_loop()
 
 
+@app.get("/favicon.ico")
+def favicon() -> FileResponse:
+    return FileResponse(STATIC_DIR / "favicon.svg", media_type="image/svg+xml")
+
+
 @app.get("/")
 def root() -> HTMLResponse:
     return _html("index.html")
