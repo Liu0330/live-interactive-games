@@ -12,6 +12,8 @@ WORDPOOL_PATH = DATA_DIR / "wordpool.txt"
 QUESTIONS_PATH = DATA_DIR / "questions.json"
 RELATED_PATH = DATA_DIR / "related_words.json"
 COMMON_GUESSES_PATH = DATA_DIR / "common_guess_words.txt"
+IDIOMS_PATH = DATA_DIR / "idioms.txt"
+EMOJI_PUZZLES_PATH = DATA_DIR / "emoji_puzzles.json"
 
 
 def ensure_user_dirs() -> None:

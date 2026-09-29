@@ -101,6 +101,15 @@ class ConfigBody(BaseModel):
     payload: dict = Field(default_factory=dict)
 
 
+class EmojiGenerateBody(BaseModel):
+    count: int = 4
+    category: str = "idiom"
+
+
+class EmojiDeleteBody(BaseModel):
+    puzzle_id: str = ""
+
+
 def _html(name: str) -> HTMLResponse:
     path = STATIC_DIR / name
     return HTMLResponse(path.read_text(encoding="utf-8"))
@@ -235,6 +244,8 @@ def api_save_config(body: ConfigBody) -> dict:
         "quiz",
         "bomb",
         "lottery",
+        "idiom",
+        "emoji",
         "gifts",
         "gift_tiers",
         "likes",
@@ -364,6 +375,36 @@ def api_set_words(body: WordsBody) -> dict:
 def api_del_word(body: WordBody) -> dict:
     words = remove_word(body.word.strip())
     return {"ok": True, "count": len(words), "words": words}
+
+
+@app.get("/api/emoji/puzzles")
+def api_emoji_puzzles() -> dict:
+    from app.games.emoji_bank import all_puzzles
+
+    puzzles = all_puzzles()
+    return {"puzzles": puzzles, "count": len(puzzles)}
+
+
+@app.post("/api/emoji/generate")
+def api_emoji_generate(body: EmojiGenerateBody) -> dict:
+    from app.games.emoji_bank import generate_with_model
+    from app.llm import ChatError
+    from app.minimax import MinimaxError
+
+    try:
+        saved = generate_with_model(body.count, body.category)
+    except (ChatError, MinimaxError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "added": len(saved), "puzzles": saved}
+
+
+@app.post("/api/emoji/delete")
+def api_emoji_delete(body: EmojiDeleteBody) -> dict:
+    from app.games.emoji_bank import all_puzzles, delete_puzzle
+
+    delete_puzzle(body.puzzle_id)
+    puzzles = all_puzzles()
+    return {"ok": True, "count": len(puzzles), "puzzles": puzzles}
 
 
 @app.post("/api/game/switch")

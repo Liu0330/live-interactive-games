@@ -8,6 +8,8 @@ from app.bus import ChatEvent, bus
 from app.config import load_config, save_config
 from app.engagement import get_engagement
 from app.games.bomb import BombGame
+from app.games.emoji_guess import EmojiGame
+from app.games.idiom import IdiomGame, set_accept_listener
 from app.games.lottery import LotteryGame
 from app.games.quiz import QuizGame
 from app.games.semantic import SemanticGame
@@ -18,6 +20,8 @@ GAMES = {
     "quiz": QuizGame,
     "bomb": BombGame,
     "lottery": LotteryGame,
+    "idiom": IdiomGame,
+    "emoji": EmojiGame,
 }
 
 GAME_LABELS = {
@@ -25,6 +29,8 @@ GAME_LABELS = {
     "quiz": "弹幕答题",
     "bomb": "数字炸弹",
     "lottery": "弹幕抽奖",
+    "idiom": "成语接龙",
+    "emoji": "看图猜",
 }
 
 
@@ -43,6 +49,7 @@ class GameManager:
 
         set_listener(self._on_related)
         set_embed_listener(self._on_embeds)
+        set_accept_listener(self._on_idiom_late)
         bus.subscribe(self._on_event)
 
     @property
@@ -127,6 +134,16 @@ class GameManager:
             game.rescore_embeddings()
             if game.status != before and game.announcement:
                 self._note_announce(["announce", "win"])
+
+    def _on_idiom_late(self, idiom: str, user_id: str, nickname: str, token: int) -> None:
+        with self._lock:
+            game = self.games.get("idiom")
+            if game is None or not hasattr(game, "accept_late"):
+                return
+            if not game.accept_late(idiom, user_id, nickname, token):
+                return
+            if self.active_id == "idiom":
+                self._note_announce(["announce", "points"])
 
     def _on_related(self, secret: str, mapping: dict[str, float]) -> None:
         from app.games.similarity import normalize_word

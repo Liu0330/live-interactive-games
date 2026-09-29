@@ -202,6 +202,49 @@ function renderLottery(state) {
     </div>`;
 }
 
+function renderIdiom(state) {
+  $("title").textContent = "成语接龙";
+  $("rightStat").textContent = state.allow_pinyin ? "同音可接" : "同字相接";
+  const need = state.need ? `接「${state.need}」` : "等待开头";
+  $("meta").textContent = state.allow_pinyin ? `${need}，同音也可以` : need;
+  const masks = (state.hints || []).map((item) => escapeHtml(item)).join("  ");
+  $("hints").textContent = masks ? `可接 ${masks}` : "发四字成语接龙";
+  const chain = (state.chain || []).map((item) => escapeHtml(item)).join(" → ");
+  const links = (state.links || []).slice(-6).map((item) => (
+    `<div class="chip">${escapeHtml(item.nickname)} ${escapeHtml(item.idiom)}</div>`
+  )).join("");
+  $("body").innerHTML = `
+    <div class="panel" style="grid-column:1/-1">
+      <div class="center-card">
+        <div class="chain-head">${escapeHtml(state.head || "—")}</div>
+        <div class="chain-need">${escapeHtml(need)}</div>
+        <div class="chain-list">${chain}</div>
+        <div class="chips">${links}</div>
+        ${renderMiniBoard(state)}
+      </div>
+    </div>`;
+}
+
+function renderEmoji(state) {
+  const label = state.category_label || "成语";
+  $("title").textContent = `看图猜${label}`;
+  $("rightStat").textContent = state.winner ? `${state.winner} 猜中` : "看表情猜";
+  $("meta").textContent = `猜一个${label}`;
+  const hints = (state.hints || []).map((item) => escapeHtml(item)).join(" · ");
+  $("hints").textContent = state.reveal ? `答案：${state.reveal}` : (hints || "发弹幕猜答案");
+  const attempts = (state.attempts || []).slice(-8).map((item) => (
+    `<div class="chip">${escapeHtml(item.nickname)}：${escapeHtml(item.text)}${item.correct ? " ✓" : ""}</div>`
+  )).join("");
+  $("body").innerHTML = `
+    <div class="panel" style="grid-column:1/-1">
+      <div class="center-card">
+        <div class="emoji-row">${escapeHtml(state.emojis || "🎁")}</div>
+        <div class="chips">${attempts || "观众发弹幕作答"}</div>
+        ${renderMiniBoard(state)}
+      </div>
+    </div>`;
+}
+
 function renderLike(state) {
   const bar = state.like_bar || {};
   const target = bar.target || 100;
@@ -260,6 +303,8 @@ function render(state) {
   if (game === "quiz") renderQuiz(state);
   else if (game === "bomb") renderBomb(state);
   else if (game === "lottery") renderLottery(state);
+  else if (game === "idiom") renderIdiom(state);
+  else if (game === "emoji") renderEmoji(state);
   else renderSemantic(state);
   if (state.reveal && (game === "semantic")) {
     $("meta").textContent += state.status === "reveal" ? ` · 揭晓 ${state.reveal}` : "";

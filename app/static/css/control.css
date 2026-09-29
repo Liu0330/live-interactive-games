@@ -30,6 +30,7 @@ header.top h1 span { color: var(--orange); }
   padding: 16px 16px 14px;
 }
 .card.wide { grid-column: 1 / -1; }
+#emojiTags { max-height: 280px; overflow: auto; margin-top: 10px; }
 .card h2 {
   margin: 0 0 12px;
   font-size: 16px;

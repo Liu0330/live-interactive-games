@@ -29,6 +29,8 @@
           <option value="quiz">弹幕答题</option>
           <option value="bomb">数字炸弹</option>
           <option value="lottery">弹幕抽奖</option>
+          <option value="idiom">成语接龙</option>
+          <option value="emoji">看图猜</option>
         </select>
         <p class="hint">切换后无需重启服务，点「开启新回合」即可。</p>
       </section>
@@ -52,13 +54,14 @@
 
       <section class="card">
         <h2>手动控制</h2>
-        <label class="field">指定谜底 / 题目关键字 / 炸弹数字 / 抽奖口令（可空）</label>
-        <input id="specified" placeholder="留空则随机">
+        <label class="field">指定谜底 / 题目关键字 / 炸弹数字 / 抽奖口令 / 成语开头 / 看图猜答案（可空）</label>
+        <input id="specified" placeholder="留空则随机。成语接龙可填开头成语，看图猜可填答案">
         <div class="row btns" style="margin-top:12px">
           <button class="btn" id="startRound">开启新回合</button>
           <button class="btn ghost" id="skipRound">跳过当前</button>
           <button class="btn red" id="clearBoard">清空积分榜</button>
         </div>
+        <p class="hint">积分、段位、连击和日榜周榜按抖音用户 ID 记在本机（没有 ID 时用昵称），六个玩法共用。切换玩法、开启新回合、重启服务都不会清掉。只有点这里并确认，才会全部清空。</p>
       </section>
 
       <section class="card">
@@ -229,6 +232,19 @@
           <input id="bombMax" type="number" placeholder="炸弹最大">
           <input id="lotKeyword" placeholder="抽奖">
         </div>
+        <label class="field">成语接龙每步秒数</label>
+        <input id="idiomSeconds" type="number" min="8">
+        <label class="field"><input id="idiomPinyin" type="checkbox" style="width:auto"> 成语接龙允许同音不同字</label>
+        <label class="field">看图猜类别 / 倒计时（秒）</label>
+        <div class="row">
+          <select id="emojiCategory">
+            <option value="rotate">成语和歌名轮换</option>
+            <option value="idiom">只猜成语</option>
+            <option value="song">只猜歌名</option>
+          </select>
+          <input id="emojiCountdown" type="number" min="15">
+        </div>
+        <label class="field"><input id="emojiPinyin" type="checkbox" style="width:auto"> 看图猜允许同音答案</label>
         <button class="btn" id="saveParams" style="margin-top:10px">保存参数</button>
       </section>
 
@@ -239,6 +255,20 @@
           <button class="btn sm" id="addWord">添加</button>
         </div>
         <div class="tags" id="wordTags"></div>
+      </section>
+
+      <section class="card wide">
+        <h2 id="emojiTitle">看图猜题库</h2>
+        <p class="hint">内置成语和歌名。配好 MiniMax 或对话接口后可以再生成，新题写进本机数据库。这里能看到答案，核对后可删除。直播画面在揭晓前不显示答案。</p>
+        <div class="row">
+          <select id="emojiGenCategory">
+            <option value="idiom">生成成语题</option>
+            <option value="song">生成歌名题</option>
+          </select>
+          <input id="emojiGenCount" type="number" min="1" max="12" value="4">
+          <button class="btn" id="genEmoji">生成并入库</button>
+        </div>
+        <div class="tags" id="emojiTags"></div>
       </section>
     </div>
   </div>

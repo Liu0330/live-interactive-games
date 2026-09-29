@@ -70,6 +70,20 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "gift_weight": True,
         "win_points": 50,
     },
+    "idiom": {
+        "link_seconds": 30,
+        "allow_pinyin": False,
+        "win_points": 30,
+    },
+    "emoji": {
+        "countdown": 70,
+        "category": "rotate",
+        "allow_pinyin": True,
+        "hint_interval": 20,
+        "hints_per_round": 3,
+        "win_points": 80,
+        "post_round_delay": 8,
+    },
     "gift_tiers": [
         {
             "id": "small",

@@ -68,7 +68,15 @@ def _finish(user_id: str, nickname: str, base: int, bonus: int, streak: int, rea
     }
 
 
+def account_id(user_id: str, nickname: str = "") -> str:
+    """全玩法共用一个账号：优先抖音用户 ID，没有 ID 时用昵称。"""
+    uid = (user_id or "").strip()
+    nick = (nickname or "").strip()
+    return uid or nick or "观众"
+
+
 def grant_win(user_id: str, nickname: str, base_points: int, reason: str = "win") -> dict:
+    user_id = account_id(user_id, nickname)
     user = get_user(user_id)
     streak = int(user.get("streak") or 0) + 1
     cfg = load_config().get("streak") or {}
@@ -79,12 +87,14 @@ def grant_win(user_id: str, nickname: str, base_points: int, reason: str = "win"
 
 
 def grant_points(user_id: str, nickname: str, base_points: int, reason: str = "points") -> dict:
+    user_id = account_id(user_id, nickname)
     user = get_user(user_id)
     streak = int(user.get("streak") or 0)
     return _finish(user_id, nickname, base_points, 0, streak, reason)
 
 
 def note_miss(user_id: str, nickname: str) -> None:
+    user_id = account_id(user_id, nickname)
     user = get_user(user_id)
     if int(user.get("streak") or 0) <= 0 and not user.get("exists"):
         return

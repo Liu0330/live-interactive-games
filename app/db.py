@@ -83,6 +83,34 @@ def init_db() -> None:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS extra_idioms (
+                    idiom TEXT PRIMARY KEY,
+                    created_at INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS emoji_puzzles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL,
+                    emojis TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    aliases TEXT NOT NULL DEFAULT '[]',
+                    hint TEXT NOT NULL DEFAULT '',
+                    created_at INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS emoji_hidden (
+                    puzzle_key TEXT PRIMARY KEY
+                )
+                """
+            )
             conn.commit()
         finally:
             conn.close()

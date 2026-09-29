@@ -49,6 +49,13 @@ function fillConfig(cfg) {
   $("quizCountdown").value = (cfg.quiz || {}).countdown ?? 60;
   $("bombMax").value = (cfg.bomb || {}).max_value ?? 100;
   $("lotKeyword").value = (cfg.lottery || {}).keyword || "抽奖";
+  const idiom = cfg.idiom || {};
+  $("idiomSeconds").value = idiom.link_seconds ?? 30;
+  $("idiomPinyin").checked = !!idiom.allow_pinyin;
+  const emoji = cfg.emoji || {};
+  $("emojiCategory").value = emoji.category || "rotate";
+  $("emojiCountdown").value = emoji.countdown ?? 70;
+  $("emojiPinyin").checked = emoji.allow_pinyin !== false;
   const tiers = cfg.gift_tiers || [];
   const small = tiers.find((t) => t.id === "small") || tiers[0] || {};
   const big = tiers.find((t) => t.id === "big") || tiers[1] || {};
@@ -108,6 +115,25 @@ function renderIngest(st) {
   el.innerHTML = `<span class="dot${on ? " on" : ""}"></span>${st.message || "未连接"}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[ch]));
+}
+
+function renderEmojiBank(puzzles) {
+  const rows = puzzles || [];
+  $("emojiTitle").textContent = `看图猜题库 · 共 ${rows.length} 题`;
+  $("emojiTags").innerHTML = rows.map((item) => {
+    const kind = item.category === "song" ? "歌名" : "成语";
+    return `<span class="tag">${escapeHtml(item.emojis)} ${escapeHtml(kind)} ${escapeHtml(item.answer)}<button data-puzzle="${escapeHtml(item.id)}" title="删除">×</button></span>`;
+  }).join("");
+}
+
 function renderWords(words) {
   $("wordTitle").textContent = `谜底词库 · 共 ${words.length} 词`;
   $("wordTags").innerHTML = words.map((w) => (
@@ -146,13 +172,15 @@ function renderState(state) {
 }
 
 async function refreshAll() {
-  const [cfg, words, state] = await Promise.all([
+  const [cfg, words, state, puzzles] = await Promise.all([
     api("/api/config"),
     api("/api/words"),
     api("/api/state?role=control"),
+    api("/api/emoji/puzzles"),
   ]);
   fillConfig(cfg);
   renderWords(words.words || []);
+  renderEmojiBank(puzzles.puzzles || []);
   renderState(state);
 }
 
@@ -170,7 +198,7 @@ $("skipRound").onclick = async () => {
   toast("已跳过");
 };
 $("clearBoard").onclick = async () => {
-  if (!confirm("确定清空积分榜？")) return;
+  if (!confirm("确定清空全部玩法的积分、连击和日榜周榜？此操作不可恢复。")) return;
   await api("/api/leaderboard/clear");
   toast("积分榜已清空");
 };
@@ -337,6 +365,15 @@ $("saveParams").onclick = async () => {
       quiz: { countdown: Number($("quizCountdown").value) },
       bomb: { max_value: Number($("bombMax").value) },
       lottery: { keyword: $("lotKeyword").value || "抽奖" },
+      idiom: {
+        link_seconds: Number($("idiomSeconds").value || 30),
+        allow_pinyin: $("idiomPinyin").checked,
+      },
+      emoji: {
+        category: $("emojiCategory").value || "rotate",
+        countdown: Number($("emojiCountdown").value || 70),
+        allow_pinyin: $("emojiPinyin").checked,
+      },
       chat_model: $("chatModel").value,
     },
   });
@@ -354,6 +391,22 @@ $("wordTags").onclick = async (ev) => {
   if (!btn) return;
   const data = await api("/api/words/delete", { word: btn.dataset.w });
   renderWords(data.words);
+};
+$("genEmoji").onclick = async () => {
+  try {
+    const data = await api("/api/emoji/generate", {
+      count: Number($("emojiGenCount").value || 4),
+      category: $("emojiGenCategory").value,
+    });
+    toast(`已入库 ${data.added} 题`);
+    renderEmojiBank((await api("/api/emoji/puzzles")).puzzles || []);
+  } catch (e) { toast(e.message); }
+};
+$("emojiTags").onclick = async (ev) => {
+  const btn = ev.target.closest("button[data-puzzle]");
+  if (!btn) return;
+  const data = await api("/api/emoji/delete", { puzzle_id: btn.dataset.puzzle });
+  renderEmojiBank(data.puzzles || []);
 };
 
 function connectWs() {

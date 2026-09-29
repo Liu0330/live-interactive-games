@@ -176,6 +176,26 @@ html, body {
   font-weight: 800;
   line-height: 1.35;
 }
+.chain-head {
+  font-size: 84px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  line-height: 1.15;
+}
+.chain-need {
+  font-size: 40px;
+  font-weight: 800;
+  color: #f0d49a;
+}
+.chain-list {
+  font-size: 34px;
+  line-height: 1.45;
+}
+.emoji-row {
+  font-size: 108px;
+  line-height: 1.15;
+  letter-spacing: 12px;
+}
 .opts {
   display: grid;
   grid-template-columns: 1fr 1fr;
