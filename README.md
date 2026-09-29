@@ -42,6 +42,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Windows 没有系统时区数据。上面这条会装上 `tzdata`。没装的话，`app/db.py` 里的 `ZoneInfo("Asia/Shanghai")` 会抛 `ZoneInfoNotFoundError`，服务起不来。虚拟环境已经建过的话，激活后再执行一次 `pip install -r requirements.txt`。
+
 ---
 
 ## 启动
