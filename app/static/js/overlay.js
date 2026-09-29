@@ -307,15 +307,47 @@ function scheduleFly() {
   }, 200);
 }
 
+function placeFlyBand(layer, bandPx, bandTop) {
+  const stage = $("stage");
+  const body = $("body");
+  if (!stage || !body) return bandPx;
+  const stageRect = stage.getBoundingClientRect();
+  const scale = stageRect.width / (stage.offsetWidth || 1080) || 1;
+  const lists = [...body.querySelectorAll(".list, .mini-board")].filter((el) => el.getBoundingClientRect().height > 8);
+  const zone = lists.length ? lists : [...body.querySelectorAll(".panel")];
+  if (!zone.length) {
+    layer.style.height = "0";
+    return bandPx;
+  }
+  const rects = zone.map((el) => el.getBoundingClientRect());
+  const zoneTop = Math.min(...rects.map((rect) => rect.top));
+  const zoneBottom = Math.max(...rects.map((rect) => rect.bottom));
+  const zoneHeight = Math.max(0, (zoneBottom - zoneTop) / scale);
+  const height = Math.max(48, Math.min(bandPx, zoneHeight));
+  let top = (zoneTop - stageRect.top) / scale;
+  const room = Math.max(0, zoneHeight - height);
+  top += room * (Math.max(0, Math.min(100, bandTop)) / 100);
+  const heroes = ["#timer", "#likebar", "#pauseFlag", ".q", ".emoji-row", ".chain-head", ".chain-need"]
+    .flatMap((sel) => [...document.querySelectorAll(sel)])
+    .map((el) => el.getBoundingClientRect())
+    .filter((rect) => rect.height > 4 && rect.width > 4);
+  for (const hero of heroes) {
+    const heroTop = (hero.top - stageRect.top) / scale;
+    const heroBottom = (hero.bottom - stageRect.top) / scale;
+    if (top < heroBottom && top + height > heroTop) top = heroBottom + 6;
+  }
+  const limit = (zoneBottom - stageRect.top) / scale - height;
+  if (top > limit) top = Math.max((zoneTop - stageRect.top) / scale, limit);
+  layer.style.top = `${Math.round(top)}px`;
+  layer.style.height = `${Math.round(height)}px`;
+  return height;
+}
+
 function renderFly(state) {
   const layer = $("fly");
   if (!layer) return;
   const cfg = state.danmaku || {};
   const enabled = cfg.enabled !== false && cfg.enabled !== 0 && cfg.enabled !== "0" && cfg.enabled !== "false" && cfg.enabled !== "False";
-  const bandHeight = Number(cfg.band_height ?? 18);
-  const bandPx = Math.round(1920 * (bandHeight / 100));
-  layer.style.top = "0";
-  layer.style.height = `${bandPx}px`;
   layer.style.opacity = String(cfg.opacity ?? 0.82);
   if (!enabled) {
     layer.innerHTML = "";
@@ -327,7 +359,8 @@ function renderFly(state) {
   const speed = Math.max(4, Math.min(20, Number(cfg.speed) || 8));
   const font = Math.max(20, Math.min(72, Number(cfg.font_size) || 32));
   const perSecond = Math.max(1, Math.min(20, Number(cfg.per_second) || 6));
-  const lanePx = bandPx / lanes;
+  const lanePx = Math.max(28, Math.round(font * 1.35));
+  const bandPx = placeFlyBand(layer, lanes * lanePx, Number(cfg.band_top ?? 0));
   const nowMs = performance.now();
   if (nowMs - flyWindow >= 1000) {
     flyWindow = nowMs;
@@ -356,7 +389,7 @@ function renderFly(state) {
     const lane = findLane(lanes, performance.now());
     if (lane < 0) break;
     const item = flyQueue.shift();
-    spawnFly(layer, item, lane, lanePx, speed, font);
+    spawnFly(layer, item, lane, bandPx / lanes, speed, font);
     flySent += 1;
   }
   scheduleFly();

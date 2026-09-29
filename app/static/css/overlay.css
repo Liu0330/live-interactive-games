@@ -63,14 +63,13 @@ html, body {
 }
 .pause-flag[hidden] { display: none; }
 .fly-layer {
-  position: relative;
-  flex: 0 0 auto;
-  height: 280px;
-  margin: 0 -42px 12px;
+  position: absolute;
+  left: 0;
   width: 1080px;
+  height: 0;
   overflow: hidden;
   pointer-events: none;
-  z-index: 4;
+  z-index: 6;
 }
 .fly-item {
   position: absolute;
