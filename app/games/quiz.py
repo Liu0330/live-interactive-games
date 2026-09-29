@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import random
-import time
 from typing import Any
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 from app.config import load_config
 from app.games.base import BaseGame
 from app.scoring import grant_win, note_miss, win_suffix
@@ -110,7 +110,7 @@ class QuizGame(BaseGame):
         self.eliminated = set()
         self.clue = ""
         self.status = "playing"
-        self.started_at = time.time()
+        self.started_at = clock_now()
         self.ends_at = self.started_at + int(self._params().get("countdown") or 60)
 
     def _choose_question(self, specified: str = "", avoid: str = "") -> dict:

@@ -5,7 +5,9 @@ import time
 from typing import Any
 
 from app.bus import ChatEvent, bus
-from app.config import load_config, save_config
+from app.clock import pause as clock_pause
+from app.clock import resume as clock_resume
+from app.config import danmaku_settings, load_config, save_config
 from app.engagement import get_engagement
 from app.games.bomb import BombGame
 from app.games.emoji_guess import EmojiGame
@@ -46,7 +48,9 @@ class GameManager:
         self.feed: list[dict] = []
         self.feed_seq = 0
         self.held_chat: list[ChatEvent] = []
+        self.paused = False
         self.engagement = get_engagement()
+        self.restore_pause()
         from app.embed_cache import set_listener as set_embed_listener
         from app.related_cache import set_listener
 
@@ -113,8 +117,55 @@ class GameManager:
             self._note_announce(notes)
             return notes
 
+    def pause(self) -> None:
+        with self._lock:
+            if self.paused:
+                return
+            clock_pause()
+            self.paused = True
+            self._save_pause(True)
+
+    def resume(self) -> None:
+        with self._lock:
+            if not self.paused:
+                return
+            delta = clock_resume()
+            self._shift_clocks(delta)
+            self.paused = False
+            self._save_pause(False)
+
+    def restore_pause(self) -> None:
+        from app.db import meta_get
+
+        if meta_get("paused") != "1" or self.paused:
+            return
+        clock_pause()
+        self.paused = True
+
+    def _save_pause(self, paused: bool) -> None:
+        from app.db import meta_set
+
+        meta_set("paused", "1" if paused else "0")
+
+    def _shift_clocks(self, delta: float) -> None:
+        if delta <= 0:
+            return
+        for game in self.games.values():
+            if game.ends_at:
+                game.ends_at += delta
+            if game.reveal_until:
+                game.reveal_until += delta
+            hint_at = float(getattr(game, "next_hint_at", 0) or 0)
+            if hint_at:
+                game.next_hint_at = hint_at + delta
+        bonus = float(getattr(self.engagement, "bonus_until", 0) or 0)
+        if bonus:
+            self.engagement.bonus_until = bonus + delta
+
     def tick(self) -> list[str]:
         with self._lock:
+            if self.paused:
+                return []
             before = self.game.status
             notes = self.game.tick()
             if hasattr(self.game, "maybe_hint"):
@@ -153,6 +204,8 @@ class GameManager:
 
     def _on_embeds(self, _texts: list[str]) -> None:
         with self._lock:
+            if self.paused:
+                return
             game = self.games.get("semantic")
             if game is None or not hasattr(game, "rescore_embeddings"):
                 return
@@ -163,6 +216,8 @@ class GameManager:
 
     def _on_idiom_late(self, idiom: str, user_id: str, nickname: str, token: int) -> None:
         with self._lock:
+            if self.paused:
+                return
             game = self.games.get("idiom")
             if game is None or not hasattr(game, "accept_late"):
                 return
@@ -175,6 +230,8 @@ class GameManager:
         from app.games.similarity import normalize_word
 
         with self._lock:
+            if self.paused:
+                return
             game = self.games.get("semantic")
             if game is None or normalize_word(game.secret) != normalize_word(secret):
                 return
@@ -187,6 +244,8 @@ class GameManager:
         with self._lock:
             self._push_feed(event)
             if event.event_type == "chat" and self._take_suggestion(event):
+                return
+            if self.paused:
                 return
             if (
                 event.event_type == "chat"
@@ -219,6 +278,8 @@ class GameManager:
                 award = getattr(self.game, "last_award", None)
                 if award:
                     self.engagement.note_award(str(award.get("nickname") or event.nickname), award)
+            if ("win" in notes or "points" in notes) and self.feed and self.feed[-1].get("id") == event.event_id:
+                self.feed[-1]["style"] = "win"
             self._note_announce(notes)
 
     def _note_announce(self, notes: list[str]) -> None:
@@ -234,7 +295,9 @@ class GameManager:
             host_extra = game.host_state() if host else {}
             feed = list(self.feed)
             feed_seq = self.feed_seq
-            intermission = max(0, int(game.reveal_until - time.time())) if game.status == "reveal" else 0
+            from app.clock import now as clock_now
+
+            intermission = max(0, int(game.reveal_until - clock_now())) if game.status == "reveal" else 0
         from app.config import scoring_info
 
         view = self.engagement.public_view()
@@ -265,6 +328,8 @@ class GameManager:
         public["feed_seq"] = feed_seq
         public["auto_continue"] = self._auto_continue()
         public["intermission"] = intermission
+        public["paused"] = self.paused
+        public["danmaku"] = danmaku_settings(cfg)
         return public
 
     def _take_suggestion(self, event: ChatEvent) -> bool:

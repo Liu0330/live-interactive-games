@@ -17,6 +17,10 @@ html, body {
   flex-direction: column;
   color: #f6f1e8;
 }
+.title, .bar, .likebar, .footer, .panel, .pause-flag, .announce, .hints, .meta, .columns, .bonus, .welcome, .danmaku {
+  position: relative;
+  z-index: 5;
+}
 .title {
   text-align: center;
   font-size: 72px;
@@ -44,6 +48,60 @@ html, body {
   text-shadow: 0 0 24px rgba(255,255,255,.15);
 }
 .bar .right { text-align: right; color: var(--teal); }
+.pause-flag {
+  align-self: center;
+  margin: 0 auto 12px;
+  background: #b4232e;
+  color: #fff;
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  padding: 8px 36px;
+  border-radius: 999px;
+  z-index: 8;
+  box-shadow: 0 10px 30px rgba(180, 35, 46, .45);
+}
+.pause-flag[hidden] { display: none; }
+.fly-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18%;
+  height: 18%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+.fly-item {
+  position: absolute;
+  left: 0;
+  white-space: nowrap;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.15;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .7);
+  animation-name: flyx;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform;
+}
+.fly-item .nick { margin-right: 10px; font-weight: 900; }
+.fly-item.gift {
+  color: #ffd36a;
+  font-weight: 900;
+  text-shadow: 0 0 12px rgba(255, 180, 40, .85), 0 2px 4px rgba(0, 0, 0, .75);
+}
+.fly-item.win {
+  color: #b6ffcf;
+  font-weight: 900;
+  text-shadow: 0 0 12px rgba(80, 220, 140, .9), 0 2px 4px rgba(0, 0, 0, .75);
+}
+.fly-item.like { color: #ffb3c4; }
+.fly-item.member { color: #b7d4ff; }
+@keyframes flyx {
+  from { transform: translateX(1080px); }
+  to { transform: translateX(calc(-100% - 20px)); }
+}
 .meta {
   text-align: center;
   font-size: 36px;
@@ -310,7 +368,7 @@ html, body {
   left: 64px;
   right: 64px;
   top: 250px;
-  z-index: 6;
+  z-index: 8;
   display: flex;
   justify-content: center;
   pointer-events: none;

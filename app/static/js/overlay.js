@@ -7,6 +7,13 @@ let seenEffect = 0;
 let shownWelcome = 0;
 let fxTimer = 0;
 let welcomeTimer = 0;
+const flySeen = new Set();
+const flyOrder = [];
+const flyFree = [];
+let flyQueue = [];
+let flyWindow = 0;
+let flySent = 0;
+let flyPump = 0;
 const BOARD_ORDER = ["day", "week", "all"];
 
 function escapeHtml(value) {
@@ -245,6 +252,104 @@ function renderEmoji(state) {
     </div>`;
 }
 
+function rememberFly(id) {
+  if (flySeen.has(id)) return false;
+  flySeen.add(id);
+  flyOrder.push(id);
+  return true;
+}
+
+function trimFly(feed) {
+  if (flyOrder.length <= 300) return;
+  const live = new Set((feed || []).map((item) => String(item.id)));
+  let guard = flyOrder.length;
+  while (flyOrder.length > 200 && guard > 0) {
+    guard -= 1;
+    const old = flyOrder.shift();
+    if (live.has(old)) flyOrder.push(old);
+    else flySeen.delete(old);
+  }
+}
+
+function findLane(count, nowMs) {
+  for (let i = 0; i < count; i += 1) {
+    if (!flyFree[i] || flyFree[i] <= nowMs) return i;
+  }
+  return -1;
+}
+
+function spawnFly(layer, item, lane, lanePx, speedSec, fontPx) {
+  const row = document.createElement("div");
+  const kind = item.style === "win" ? "win" : (item.kind || "chat");
+  row.className = `fly-item ${kind}`;
+  row.dataset.id = String(item.id);
+  const nick = document.createElement("span");
+  nick.className = "nick";
+  nick.textContent = item.nickname || "观众";
+  row.appendChild(nick);
+  row.appendChild(document.createTextNode(item.text || ""));
+  const size = Math.max(16, Math.min(fontPx, lanePx * 0.86));
+  row.style.fontSize = `${size}px`;
+  row.style.top = `${lane * lanePx}px`;
+  row.style.animationDuration = `${speedSec}s`;
+  layer.appendChild(row);
+  const width = row.offsetWidth || Math.ceil(String(`${item.nickname || ""}${item.text || ""}`).length * size);
+  const travel = 1080 + width + 20;
+  flyFree[lane] = performance.now() + speedSec * 1000 * (width / travel);
+  row.addEventListener("animationend", () => row.remove());
+}
+
+function scheduleFly() {
+  if (flyPump || !flyQueue.length) return;
+  flyPump = setTimeout(() => {
+    flyPump = 0;
+    if (lastState) renderFly(lastState);
+  }, 200);
+}
+
+function renderFly(state) {
+  const layer = $("fly");
+  if (!layer) return;
+  const cfg = state.danmaku || {};
+  const enabled = cfg.enabled !== false && cfg.enabled !== 0 && cfg.enabled !== "0" && cfg.enabled !== "false" && cfg.enabled !== "False";
+  const bandTop = Number(cfg.band_top ?? 18);
+  const bandHeight = Number(cfg.band_height ?? 18);
+  layer.style.top = `${bandTop}%`;
+  layer.style.height = `${bandHeight}%`;
+  layer.style.opacity = String(cfg.opacity ?? 0.82);
+  if (!enabled) {
+    layer.innerHTML = "";
+    flyQueue = [];
+    return;
+  }
+  const lanes = Math.max(2, Math.min(12, Number(cfg.lanes) || 4));
+  const speed = Math.max(4, Math.min(20, Number(cfg.speed) || 8));
+  const font = Math.max(20, Math.min(72, Number(cfg.font_size) || 32));
+  const perSecond = Math.max(1, Math.min(20, Number(cfg.per_second) || 6));
+  const bandPx = 1920 * (bandHeight / 100);
+  const lanePx = bandPx / lanes;
+  const nowMs = performance.now();
+  if (nowMs - flyWindow >= 1000) {
+    flyWindow = nowMs;
+    flySent = 0;
+  }
+  trimFly(state.feed);
+  for (const item of state.feed || []) {
+    if (!item || item.id == null) continue;
+    if (!rememberFly(String(item.id))) continue;
+    if (flyQueue.length >= perSecond) continue;
+    flyQueue.push(item);
+  }
+  while (flyQueue.length && flySent < perSecond) {
+    const lane = findLane(lanes, performance.now());
+    if (lane < 0) break;
+    const item = flyQueue.shift();
+    spawnFly(layer, item, lane, lanePx, speed, font);
+    flySent += 1;
+  }
+  scheduleFly();
+}
+
 function renderFeed(state) {
   const box = $("danmaku");
   if (!box) return;
@@ -311,6 +416,8 @@ function playEffects(effects) {
 
 function render(state) {
   lastState = state;
+  const flag = $("pauseFlag");
+  if (flag) flag.hidden = !state.paused;
   $("roundText").textContent = `第${state.round || 0}局`;
   $("timer").textContent = fmtTime(state.countdown);
   $("announce").textContent = state.announcement || "";
@@ -333,6 +440,7 @@ function render(state) {
     $("meta").textContent = [$("meta").textContent, wait].filter(Boolean).join(" · ");
   }
   renderFeed(state);
+  renderFly(state);
   if (state.announce_seq && state.announce_seq !== lastAnnounce) {
     lastAnnounce = state.announce_seq;
     if (state.tts) speak(state.tts);

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import random
-import time
 from typing import Any
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 from app.config import load_config
 from app.games.base import BaseGame
 from app.scoring import grant_points, grant_win, win_suffix
@@ -68,7 +68,7 @@ class SemanticGame(BaseGame):
         self.hints = []
         self.hint_pool = _hint_candidates(self.secret)
         self.status = "playing"
-        self.started_at = time.time()
+        self.started_at = clock_now()
         countdown = int(params.get("countdown") or 180)
         self.ends_at = self.started_at + countdown
         self.next_hint_at = self.started_at + int(params.get("hint_interval") or 30)
@@ -92,7 +92,7 @@ class SemanticGame(BaseGame):
         return ["timeout", "announce"]
 
     def maybe_hint(self, now: float | None = None) -> list[str]:
-        now = now if now is not None else time.time()
+        now = now if now is not None else clock_now()
         params = self._params()
         if self.status != "playing":
             return []

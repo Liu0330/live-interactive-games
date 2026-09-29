@@ -182,7 +182,9 @@ class Engagement:
         return dict(load_config().get("likes") or {})
 
     def multiplier(self) -> int:
-        if time.time() >= self.bonus_until:
+        from app.clock import now as clock_now
+
+        if clock_now() >= self.bonus_until:
             return 1
         mult = int(self._likes_cfg().get("multiplier") or 2)
         return max(2, mult)
@@ -377,7 +379,9 @@ class Engagement:
         cfg = load_config()
         likes_cfg = cfg.get("likes") or {}
         target = max(1, int(likes_cfg.get("target") or 100))
-        remaining = max(0, int(self.bonus_until - time.time()))
+        from app.clock import now as clock_now
+
+        remaining = max(0, int(self.bonus_until - clock_now()))
         mult = self.multiplier() if remaining else 1
         names = cfg.get("rank_names")
         per_sub = int(cfg.get("points_per_sublevel") or 180)

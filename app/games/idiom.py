@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import random
 import threading
-import time
 from typing import Any, Callable
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 from app.config import chat_ready, load_config
 from app.games.base import BaseGame
 from app.games.idiom_bank import (
@@ -123,9 +123,9 @@ class IdiomGame(BaseGame):
         self.hint_example = ""
         self.link_token += 1
         self.status = "playing"
-        self.started_at = time.time()
+        self.started_at = clock_now()
         seconds = int(self._params().get("link_seconds") or 30)
-        self.ends_at = time.time() + max(8, seconds)
+        self.ends_at = clock_now() + max(8, seconds)
         self.announcement = announcement
 
     def _offer_new(self, reason: str) -> str:
@@ -215,7 +215,7 @@ class IdiomGame(BaseGame):
         self.hint_example = ""
         self.link_token += 1
         seconds = int(self._params().get("link_seconds") or 30)
-        self.ends_at = time.time() + max(8, seconds)
+        self.ends_at = clock_now() + max(8, seconds)
         self.links_log.append({"nickname": nickname, "idiom": word})
         self.links_log = self.links_log[-8:]
         self.last_winner = nickname

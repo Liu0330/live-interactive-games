@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import random
 import re
-import time
 from typing import Any
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 from app.config import load_config
 from app.games.base import BaseGame
 from app.scoring import grant_win, note_miss, win_suffix
@@ -95,7 +95,7 @@ class BombGame(BaseGame):
         self.last_safe = ""
         self.last_safe_user = ""
         self.status = "playing"
-        self.started_at = time.time()
+        self.started_at = clock_now()
         self.ends_at = self.started_at + int(params.get("countdown") or 180)
         self.announcement = f"第{self.round_no}局，数字在 {self.low} 到 {self.high} 之间"
         return ["start", "announce"]

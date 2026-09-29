@@ -16,6 +16,7 @@
         <div class="sub">本机地址 http://127.0.0.1:8000/control · 游戏画面 /overlay</div>
       </div>
       <div class="row btns">
+        <button class="btn red pause" id="pauseToggle" type="button" data-paused="0">暂停</button>
         <button class="btn green" id="openOverlay">打开游戏界面</button>
       </div>
     </header>
@@ -66,7 +67,30 @@
         <label class="field">揭晓停留（秒，建议 5–10）</label>
         <input id="intermission" type="number" min="3" max="60" value="8">
         <label class="field"><input id="countGapChat" type="checkbox" style="width:auto" checked> 揭晓期间的弹幕计入下一局</label>
-        <p class="hint">默认开着。倒计时结束或有人获胜后，画面先停几秒给观众看答案，然后自己开下一局，可以一直播。跳过当前会停在这一局，不会马上重开。成语接龙每一步超时会换一个新开头；整局接不下去时也会自动重开。</p>
+        <p class="hint">默认开着。倒计时结束或有人获胜后，画面先停几秒给观众看答案，然后自己开下一局，可以一直播。跳过当前会停在这一局，不会马上重开。成语接龙每一步超时会换一个新开头；整局接不下去时也会自动重开。右上角「暂停」会冻住当前倒计时和自动下一局，弹幕仍显示，但不计分；点「继续」从剩下的时间接着走。刷新控制台或游戏画面后，暂停状态还在。</p>
+      </section>
+
+      <section class="card">
+        <h2>飞过弹幕</h2>
+        <label class="field"><input id="dmEnabled" type="checkbox" style="width:auto" checked> 弹幕从右往左飞过画面</label>
+        <label class="field">穿越时间（秒，越大越慢） / 字号</label>
+        <div class="row">
+          <input id="dmSpeed" type="number" min="4" max="20" step="1" value="8">
+          <input id="dmFont" type="number" min="20" max="72" step="1" value="32">
+        </div>
+        <label class="field">透明度 / 行数 / 每秒最多几条</label>
+        <div class="row">
+          <input id="dmOpacity" type="number" min="0.25" max="1" step="0.01" value="0.82">
+          <input id="dmLanes" type="number" min="2" max="12" step="1" value="4">
+          <input id="dmPerSecond" type="number" min="1" max="20" step="1" value="6">
+        </div>
+        <label class="field">出现位置（距顶部 %） / 弹幕带高度（%）</label>
+        <div class="row">
+          <input id="dmBandTop" type="number" min="0" max="70" step="1" value="18">
+          <input id="dmBandHeight" type="number" min="10" max="50" step="1" value="18">
+        </div>
+        <button class="btn" id="saveDanmaku" type="button" style="margin-top:10px">保存弹幕样式</button>
+        <p class="hint">飞过的弹幕只在上面这条带子里，多行并排、互不重叠。答案、点赞条和积分榜仍盖在上面，方便看清。礼物是金色，答对是绿色。人多时超出「每秒最多」的会丢掉。底部聊天条还在。控制台模拟弹幕也会飞过去。</p>
       </section>
 
       <section class="card">

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import random
-import time
 from typing import Any
 
 from pypinyin import Style, lazy_pinyin
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 from app.config import load_config
 from app.games.base import BaseGame
 from app.games.emoji_bank import all_puzzles
@@ -56,7 +56,7 @@ class EmojiGame(BaseGame):
         self.attempts = []
         self.winner = ""
         self.status = "playing"
-        self.started_at = time.time()
+        self.started_at = clock_now()
         countdown = int(params.get("countdown") or 70)
         self.ends_at = self.started_at + max(15, countdown)
         self.next_hint_at = self.started_at + int(params.get("hint_interval") or 20)
@@ -104,7 +104,7 @@ class EmojiGame(BaseGame):
         return "已换一道新题"
 
     def maybe_hint(self, now: float | None = None) -> list[str]:
-        now = now if now is not None else time.time()
+        now = now if now is not None else clock_now()
         params = self._params()
         if self.status != "playing":
             return []

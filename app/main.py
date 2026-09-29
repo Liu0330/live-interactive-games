@@ -62,6 +62,10 @@ class SwitchBody(BaseModel):
     game: str
 
 
+class PauseBody(BaseModel):
+    paused: bool = True
+
+
 class ChatBody(BaseModel):
     nickname: str = "测试观众"
     content: str = ""
@@ -291,6 +295,7 @@ def api_save_config(body: ConfigBody) -> dict:
         "auto_continue",
         "intermission_seconds",
         "count_intermission_chat",
+        "danmaku",
     }
     patch = {k: v for k, v in (body.payload or {}).items() if k in allowed}
     if "gift_tiers" in patch:
@@ -559,6 +564,17 @@ def api_emoji_delete(body: EmojiDeleteBody) -> dict:
     delete_puzzle(body.puzzle_id)
     puzzles = all_puzzles()
     return {"ok": True, "count": len(puzzles), "puzzles": puzzles}
+
+
+@app.post("/api/pause")
+def api_pause(body: PauseBody) -> dict:
+    if body.paused:
+        manager.pause()
+    else:
+        manager.resume()
+    payload = _with_tts(manager.snapshot(host=True))
+    _broadcast(payload)
+    return {"ok": True, "paused": manager.paused, "state": payload}
 
 
 @app.post("/api/game/switch")

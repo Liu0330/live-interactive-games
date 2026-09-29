@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import random
-import time
 from typing import Any
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 from app.config import load_config
 from app.games.base import BaseGame
 from app.scoring import grant_win, win_suffix
@@ -61,7 +61,7 @@ class LotteryGame(BaseGame):
         self.winner = None
         self.rolling = False
         self.status = "playing"
-        self.started_at = time.time()
+        self.started_at = clock_now()
         self.ends_at = self.started_at + int(params.get("duration") or 60)
         self.announcement = f"发送「{self.keyword}」参与抽奖"
         return ["start", "announce"]
@@ -84,7 +84,7 @@ class LotteryGame(BaseGame):
             return ""
         self.entries = []
         self.winner = None
-        self.ends_at = time.time() + int(self._params().get("duration") or 60)
+        self.ends_at = clock_now() + int(self._params().get("duration") or 60)
         return "已清空名单并重新计时"
 
     def qualifies(self, text: str) -> bool:

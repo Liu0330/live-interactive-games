@@ -59,6 +59,15 @@ function fillConfig(cfg) {
   $("autoContinue").checked = cfg.auto_continue !== false;
   $("intermission").value = cfg.intermission_seconds ?? 8;
   $("countGapChat").checked = cfg.count_intermission_chat !== false;
+  const dm = cfg.danmaku || {};
+  $("dmEnabled").checked = dm.enabled !== false && dm.enabled !== 0 && dm.enabled !== "0" && dm.enabled !== "false";
+  $("dmSpeed").value = dm.speed ?? 8;
+  $("dmFont").value = dm.font_size ?? 32;
+  $("dmOpacity").value = dm.opacity ?? 0.82;
+  $("dmLanes").value = dm.lanes ?? 4;
+  $("dmPerSecond").value = dm.per_second ?? 6;
+  $("dmBandTop").value = dm.band_top ?? 18;
+  $("dmBandHeight").value = dm.band_height ?? 18;
   const tiers = cfg.gift_tiers || [];
   const small = tiers.find((t) => t.id === "small") || tiers[0] || {};
   const big = tiers.find((t) => t.id === "big") || tiers[1] || {};
@@ -184,7 +193,15 @@ function renderState(state) {
   const extra = [];
   if (bar.target) extra.push(`点赞 ${bar.count || 0}/${bar.target}`);
   if (bonus.active) extra.push(`${bonus.label} 剩余 ${bonus.remaining} 秒`);
-  $("hostStatus").textContent = [host.status_text || "等待开启回合…", extra.join(" · ")].filter(Boolean).join("\n");
+  const paused = !!(state && state.paused);
+  const btn = $("pauseToggle");
+  if (btn) {
+    btn.dataset.paused = paused ? "1" : "0";
+    btn.textContent = paused ? "继续" : "暂停";
+    btn.classList.toggle("green", paused);
+    btn.classList.toggle("red", !paused);
+  }
+  $("hostStatus").textContent = [paused ? "暂停中" : "", host.status_text || "等待开启回合…", extra.join(" · ")].filter(Boolean).join("\n");
   if ($("likeProgress") && bar.target) {
     $("likeProgress").textContent = `点赞进度 ${bar.count || 0} / ${bar.target} · ${bar.reward_label || ""}`;
   }
@@ -219,6 +236,32 @@ async function refreshAll() {
 }
 
 $("openOverlay").onclick = () => window.open("/overlay", "overlay", "width=420,height=748");
+$("pauseToggle").onclick = async () => {
+  const wantPause = $("pauseToggle").dataset.paused !== "1";
+  try {
+    const data = await api("/api/pause", { paused: wantPause });
+    if (data.state) renderState(data.state);
+    toast(wantPause ? "已暂停" : "已继续");
+  } catch (e) { toast(e.message); }
+};
+function danmakuPayload() {
+  return {
+    enabled: $("dmEnabled").checked,
+    speed: Number($("dmSpeed").value || 8),
+    font_size: Number($("dmFont").value || 32),
+    opacity: Number($("dmOpacity").value || 0.82),
+    lanes: Number($("dmLanes").value || 4),
+    per_second: Number($("dmPerSecond").value || 6),
+    band_top: Number($("dmBandTop").value || 18),
+    band_height: Number($("dmBandHeight").value || 18),
+  };
+}
+$("saveDanmaku").onclick = async () => {
+  try {
+    await api("/api/config", { payload: { danmaku: danmakuPayload() } });
+    toast("弹幕样式已保存");
+  } catch (e) { toast(e.message); }
+};
 $("gamePicker").onchange = async () => {
   await api("/api/game/switch", { game: $("gamePicker").value });
   toast("已切换玩法");
@@ -388,6 +431,7 @@ $("saveParams").onclick = async () => {
       auto_continue: $("autoContinue").checked,
       intermission_seconds: Math.max(3, Math.min(60, Number($("intermission").value || 8))),
       count_intermission_chat: $("countGapChat").checked,
+      danmaku: danmakuPayload(),
       chat_model: $("chatModel").value,
     },
   });

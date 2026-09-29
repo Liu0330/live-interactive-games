@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 
 
 class BaseGame(ABC):
@@ -24,7 +25,7 @@ class BaseGame(ABC):
     def remaining(self) -> int:
         if self.status != "playing":
             return 0
-        return max(0, int(self.ends_at - time.time()))
+        return max(0, int(self.ends_at - clock_now()))
 
     def begin_reveal(self, announcement: str) -> None:
         """揭晓答案并停留一段时间，之后由管理器决定是否开下一局。"""
@@ -36,11 +37,11 @@ class BaseGame(ABC):
         except (TypeError, ValueError):
             seconds = 8
         self.status = "reveal"
-        self.reveal_until = time.time() + max(3, min(60, seconds))
+        self.reveal_until = clock_now() + max(3, min(60, seconds))
         self.announcement = announcement
 
     def tick(self, now: float | None = None) -> list[str]:
-        now = now if now is not None else time.time()
+        now = now if now is not None else clock_now()
         notes: list[str] = []
         if self.status == "playing" and now >= self.ends_at:
             notes.extend(self.on_timeout())

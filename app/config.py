@@ -41,6 +41,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "auto_continue": True,
     "intermission_seconds": 8,
     "count_intermission_chat": True,
+    "danmaku": {
+        "enabled": True,
+        "speed": 8,
+        "font_size": 32,
+        "opacity": 0.82,
+        "lanes": 4,
+        "per_second": 6,
+        "band_top": 18,
+        "band_height": 18,
+    },
     "points_per_sublevel": 180,
     "rank_names": ["青铜", "白银", "黄金", "铂金", "钻石", "星耀", "王者", "挑战者"],
     "semantic": {
@@ -305,6 +315,29 @@ def scoring_info(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
         "scoring_mode_label": "本地拼音+字面",
         "scoring_mode_detail": "未配置 API Key，谐音、相关词表与字形离线计分",
         **voice,
+    }
+
+
+def danmaku_settings(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    raw = (cfg or load_config()).get("danmaku") or {}
+
+    def num(key: str, default: float, lo: float, hi: float, cast=float):
+        try:
+            value = cast(raw.get(key, default))
+        except (TypeError, ValueError):
+            value = default
+        return max(lo, min(hi, value))
+
+    enabled = raw.get("enabled", True)
+    return {
+        "enabled": bool(enabled) and enabled not in {0, "0", "false", "False"},
+        "speed": num("speed", 8, 4, 20),
+        "font_size": int(num("font_size", 32, 20, 72, int)),
+        "opacity": num("opacity", 0.82, 0.25, 1),
+        "lanes": int(num("lanes", 4, 2, 12, int)),
+        "per_second": int(num("per_second", 6, 1, 20, int)),
+        "band_top": int(num("band_top", 18, 0, 70, int)),
+        "band_height": int(num("band_height", 18, 10, 50, int)),
     }
 
 
