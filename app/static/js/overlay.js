@@ -111,7 +111,7 @@ function renderSideBoards(state) {
   const boards = (state && state.boards) || {};
   const block = (key, title) => {
     const board = boards[key] || { label: title, rows: [] };
-    const rows = (board.rows || []).slice(0, 4);
+    const rows = (board.rows || []).slice(0, 8);
     const body = rows.length ? renderBoard(rows) : `<div class="empty">暂无</div>`;
     return `<section class="panel"><h3>${escapeHtml(board.label || title)}</h3><div class="list">${body}</div></section>`;
   };
