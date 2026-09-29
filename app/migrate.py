@@ -20,6 +20,7 @@ MIGRATIONS: list[tuple[str, str]] = [
     ("005_game_banks", "补上成语和看图猜题库"),
     ("006_global_accounts", "把已有积分归入全局账号"),
     ("007_content_banks", "补上可扩充的题库和观众出题"),
+    ("008_api_usage", "补上接口用量记录"),
 ]
 
 
@@ -330,6 +331,27 @@ def _step_content_banks(conn: sqlite3.Connection) -> None:
     copy_legacy_rows(conn)
 
 
+def _step_api_usage(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS api_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at INTEGER NOT NULL,
+            provider TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            model TEXT NOT NULL,
+            prompt_tokens INTEGER,
+            completion_tokens INTEGER,
+            total_tokens INTEGER,
+            characters INTEGER,
+            vectors INTEGER,
+            ok INTEGER NOT NULL DEFAULT 1
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_api_usage_created ON api_usage (created_at)")
+
+
 _STEPS = [
     ("001_core_scores", _step_core_scores),
     ("002_score_progress", _step_score_progress),
@@ -338,4 +360,5 @@ _STEPS = [
     ("005_game_banks", _step_game_banks),
     ("006_global_accounts", _step_global_accounts),
     ("007_content_banks", _step_content_banks),
+    ("008_api_usage", _step_api_usage),
 ]

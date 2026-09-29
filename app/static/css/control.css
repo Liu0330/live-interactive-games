@@ -88,6 +88,27 @@ label.field {
   color: #9aa8c2;
   padding: 0 2px;
 }
+.usage-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.usage-box {
+  background: #0c1018;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.usage-box h3 { margin: 0 0 6px; font-size: 14px; color: #fff; }
+.usage-recent {
+  max-height: 220px;
+  overflow: auto;
+  background: #0c1018;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.usage-line { padding: 4px 0; border-bottom: 1px solid #1c2433; }
 .hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 8px; }
 textarea.short { min-height: 72px; }
 .toast {
@@ -104,5 +125,5 @@ textarea.short { min-height: 72px; }
 }
 .toast.show { opacity: 1; }
 @media (max-width: 900px) {
-  .grid { grid-template-columns: 1fr; }
+  .grid, .usage-cols { grid-template-columns: 1fr; }
 }

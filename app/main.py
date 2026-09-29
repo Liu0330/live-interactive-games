@@ -602,6 +602,16 @@ def api_skip() -> dict:
     return {"ok": True, "state": payload}
 
 
+@app.post("/api/usage/reset")
+def api_reset_usage() -> dict:
+    from app.usage import reset_usage, usage_summary
+
+    reset_usage()
+    usage = usage_summary()
+    _broadcast()
+    return {"ok": True, "usage": usage}
+
+
 @app.post("/api/leaderboard/clear")
 def api_clear_board() -> dict:
     db.clear_leaderboard()

@@ -15,6 +15,12 @@ class SiliconFlowError(RuntimeError):
     pass
 
 
+def _note(kind: str, model: str, payload: Any = None, vectors: int | None = None, ok: bool = True) -> None:
+    from app.usage import note_call
+
+    note_call(provider="siliconflow", kind=kind, model=model, payload=payload, vectors=vectors, ok=ok)
+
+
 def _headers() -> dict[str, str]:
     key = api_key()
     if not key:
@@ -37,8 +43,10 @@ def test_connection() -> dict[str, Any]:
     with httpx.Client(timeout=30) as client:
         resp = client.post(f"{BASE_URL}/chat/completions", headers=_headers(), json=payload)
         if resp.status_code >= 400:
+            _note("chat", model, ok=False)
             raise SiliconFlowError(f"连接失败 HTTP {resp.status_code}: {resp.text[:240]}")
         data = resp.json()
+    _note("chat", model, payload=data)
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
     return {"ok": True, "model": model, "reply": text}
 
@@ -58,8 +66,10 @@ def chat_json(prompt: str, system: str) -> Any:
     with httpx.Client(timeout=90) as client:
         resp = client.post(f"{BASE_URL}/chat/completions", headers=_headers(), json=payload)
         if resp.status_code >= 400:
+            _note("chat", model, ok=False)
             raise SiliconFlowError(f"生成失败 HTTP {resp.status_code}: {resp.text[:240]}")
         data = resp.json()
+    _note("chat", model, payload=data)
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
     return _extract_json(text)
 
@@ -116,9 +126,11 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     with httpx.Client(timeout=45) as client:
         resp = client.post(f"{BASE_URL}/embeddings", headers=_headers(), json=payload)
         if resp.status_code >= 400:
+            _note("embed", model, ok=False)
             raise SiliconFlowError(f"向量失败 HTTP {resp.status_code}: {resp.text[:240]}")
         data = resp.json()
     rows = sorted(data.get("data") or [], key=lambda x: int(x.get("index") or 0))
+    _note("embed", model, payload=data, vectors=len(rows))
     return [list(row.get("embedding") or []) for row in rows]
 
 
@@ -148,7 +160,9 @@ def synthesize_speech(text: str) -> bytes:
     with httpx.Client(timeout=60) as client:
         resp = client.post(f"{BASE_URL}/audio/speech", headers=_headers(), json=payload)
         if resp.status_code >= 400:
+            _note("tts", str(payload["model"]), ok=False)
             raise SiliconFlowError(f"语音失败 HTTP {resp.status_code}: {resp.text[:240]}")
+        _note("tts", str(payload["model"]))
         return resp.content
 
 

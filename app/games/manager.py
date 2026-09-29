@@ -324,6 +324,9 @@ class GameManager:
         if host:
             public["host"] = host_extra
             public["active_game"] = self.active_id
+            from app.usage import usage_summary
+
+            public["usage"] = usage_summary()
         public["feed"] = feed
         public["feed_seq"] = feed_seq
         public["auto_continue"] = self._auto_continue()

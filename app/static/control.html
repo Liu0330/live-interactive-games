@@ -53,6 +53,15 @@
         <p class="hint" id="scoringMode">计分方式：本地拼音+字面（未配置 API Key）</p>
       </section>
 
+      <section class="card wide">
+        <h2>接口用量</h2>
+        <p class="hint">统计 MiniMax、对话接口和硅基流动返回的用量。对话记输入、输出和合计 token；向量和语音只在接口返回字符数或向量条数时才记。不保存密钥，也不保存提示词。今天按北京时间，本次运行从这次启动服务算起，重启后本次清零，累计一直留着。</p>
+        <div class="usage-cols" id="usageTotals"></div>
+        <label class="field">最近 20 次</label>
+        <div class="usage-recent" id="usageRecent">还没有调用</div>
+        <button class="btn ghost" id="resetUsage" type="button" style="margin-top:10px">清空用量记录</button>
+      </section>
+
       <section class="card">
         <h2>手动控制</h2>
         <label class="field">指定谜底 / 题目关键字 / 炸弹数字 / 抽奖口令 / 成语开头 / 看图猜答案（可空）</label>

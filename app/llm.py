@@ -16,6 +16,12 @@ class ChatError(RuntimeError):
     pass
 
 
+def _note_chat(model: str, payload: Any = None, ok: bool = True) -> None:
+    from app.usage import note_call
+
+    note_call(provider="llm", kind="chat", model=model, payload=payload, ok=ok)
+
+
 def _extract_json(text: str) -> Any:
     raw = (text or "").strip()
     fence = re.search(r"```(?:json)?\s*([\s\S]+?)```", raw)
@@ -61,15 +67,20 @@ def chat_completion(
         with httpx.Client(timeout=timeout) as client:
             resp = client.post(url, headers=headers, json=payload)
     except httpx.TimeoutException as exc:
+        _note_chat(model, ok=False)
         raise ChatError("对话接口超时") from exc
     except httpx.HTTPError as exc:
+        _note_chat(model, ok=False)
         raise ChatError("对话接口不可用") from exc
     if resp.status_code >= 400:
+        _note_chat(model, ok=False)
         raise ChatError(f"对话失败 HTTP {resp.status_code}: {resp.text[:240]}")
     try:
         data = resp.json()
     except json.JSONDecodeError as exc:
+        _note_chat(model, ok=False)
         raise ChatError("对话接口没有返回 JSON") from exc
+    _note_chat(model, payload=data)
     from app.minimax import strip_think
 
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()

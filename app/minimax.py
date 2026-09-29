@@ -18,6 +18,20 @@ class MinimaxError(RuntimeError):
     pass
 
 
+def _note(provider: str, kind: str, model: str, payload: Any = None, vectors: int | None = None, ok: bool = True) -> None:
+    from app.usage import note_call
+
+    note_call(provider=provider, kind=kind, model=model, payload=payload, vectors=vectors, ok=ok)
+
+
+def _status_ok(data: Any) -> bool:
+    status = (data.get("base_resp") or {}).get("status_code", 0) if isinstance(data, dict) else 0
+    try:
+        return int(status) == 0
+    except (TypeError, ValueError):
+        return False
+
+
 def strip_think(text: str) -> str:
     return _THINK.sub("", text or "").strip()
 
@@ -68,15 +82,20 @@ def complete_chat(
         with httpx.Client(timeout=timeout) as client:
             resp = client.post(url, headers=headers, json=payload)
     except httpx.TimeoutException as exc:
+        _note("minimax", "chat", settings["chat_model"], ok=False)
         raise MinimaxError("MiniMax 对话超时") from exc
     except httpx.HTTPError as exc:
+        _note("minimax", "chat", settings["chat_model"], ok=False)
         raise MinimaxError("MiniMax 对话不可用") from exc
     if resp.status_code >= 400:
+        _note("minimax", "chat", settings["chat_model"], ok=False)
         raise MinimaxError(f"MiniMax 对话失败 HTTP {resp.status_code}: {resp.text[:240]}")
     try:
         data = resp.json()
     except ValueError as exc:
+        _note("minimax", "chat", settings["chat_model"], ok=False)
         raise MinimaxError("MiniMax 对话没有返回 JSON") from exc
+    _note("minimax", "chat", settings["chat_model"], payload=data)
     blocks = data.get("content") or []
     text = ""
     if blocks and isinstance(blocks[0], dict):
@@ -117,24 +136,31 @@ def embed_texts(texts: list[str], kind: str) -> list[list[float]] | None:
         with httpx.Client(timeout=EMBED_TIMEOUT) as client:
             resp = client.post(url, headers=headers, json=payload)
     except (httpx.TimeoutException, httpx.HTTPError):
+        _note("minimax", "embed", settings["embed_model"], ok=False)
         return None
     if resp.status_code >= 400:
+        _note("minimax", "embed", settings["embed_model"], ok=False)
         return None
     try:
         data = resp.json()
     except ValueError:
+        _note("minimax", "embed", settings["embed_model"], ok=False)
         return None
     vectors = data.get("vectors")
     if not isinstance(vectors, list) or len(vectors) != len(clean):
+        _note("minimax", "embed", settings["embed_model"], payload=data, ok=False)
         return None
     out: list[list[float]] = []
     for row in vectors:
         if not isinstance(row, list) or not row:
+            _note("minimax", "embed", settings["embed_model"], payload=data, ok=False)
             return None
         try:
             out.append([float(value) for value in row])
         except (TypeError, ValueError):
+            _note("minimax", "embed", settings["embed_model"], payload=data, ok=False)
             return None
+    _note("minimax", "embed", settings["embed_model"], payload=data, vectors=len(out))
     return out
 
 
@@ -178,15 +204,20 @@ def synthesize_speech(text: str) -> bytes:
         with httpx.Client(timeout=TTS_TIMEOUT) as client:
             resp = client.post(url, headers=headers, json=payload)
     except httpx.TimeoutException as exc:
+        _note("minimax", "tts", model, ok=False)
         raise MinimaxError("MiniMax 语音超时") from exc
     except httpx.HTTPError as exc:
+        _note("minimax", "tts", model, ok=False)
         raise MinimaxError("MiniMax 语音不可用") from exc
     if resp.status_code >= 400:
+        _note("minimax", "tts", model, ok=False)
         raise MinimaxError(f"MiniMax 语音失败 HTTP {resp.status_code}: {resp.text[:240]}")
     try:
         data = resp.json()
     except ValueError as exc:
+        _note("minimax", "tts", model, ok=False)
         raise MinimaxError("MiniMax 语音没有返回 JSON") from exc
+    _note("minimax", "tts", model, payload=data, ok=_status_ok(data))
     status = (data.get("base_resp") or {}).get("status_code", 0)
     try:
         status_code = int(status)

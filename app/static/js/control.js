@@ -213,6 +213,50 @@ function renderState(state) {
   }
   if (state && state.game) $("gamePicker").value = state.game;
   if (state) renderScoring(state);
+  if (state && state.usage) renderUsage(state.usage);
+}
+
+function renderUsage(usage) {
+  const totals = $("usageTotals");
+  const recent = $("usageRecent");
+  if (!totals || !recent || !usage) return;
+  const labels = { today: "今天", session: "本次运行", all_time: "累计" };
+  const kinds = { chat: "对话", embed: "向量", tts: "语音" };
+  const providers = { minimax: "MiniMax", llm: "对话接口", siliconflow: "硅基流动" };
+  totals.innerHTML = ["today", "session", "all_time"].map((key) => {
+    const bucket = usage[key] || {};
+    const lines = ["chat", "embed", "tts"].map((kind) => {
+      const row = bucket[kind] || {};
+      const bits = [`${row.calls || 0} 次`];
+      if (row.prompt_tokens) bits.push(`输入 ${row.prompt_tokens}`);
+      if (row.completion_tokens) bits.push(`输出 ${row.completion_tokens}`);
+      if (row.total_tokens) bits.push(`合计 ${row.total_tokens} token`);
+      if (row.characters) bits.push(`${row.characters} 字`);
+      if (row.vectors) bits.push(`${row.vectors} 条向量`);
+      return `<div><b>${kinds[kind]}</b> ${bits.join(" · ")}</div>`;
+    }).join("");
+    return `<div class="usage-box"><h3>${labels[key]}</h3>${lines}</div>`;
+  }).join("");
+  const rows = usage.recent || [];
+  if (!rows.length) {
+    recent.textContent = "还没有调用";
+    return;
+  }
+  const clock = new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Shanghai",
+  });
+  recent.innerHTML = rows.map((row) => {
+    const bits = [];
+    if (row.prompt_tokens != null) bits.push(`输入 ${row.prompt_tokens}`);
+    if (row.completion_tokens != null) bits.push(`输出 ${row.completion_tokens}`);
+    if (row.total_tokens != null) bits.push(`合计 ${row.total_tokens} token`);
+    if (row.characters != null) bits.push(`${row.characters} 字`);
+    if (row.vectors != null) bits.push(`${row.vectors} 条向量`);
+    if (!bits.length) bits.push(row.ok ? "接口未返回用量" : "失败");
+    const when = clock.format(new Date((row.created_at || 0) * 1000));
+    const fail = row.ok ? "" : " 失败";
+    return `<div class="usage-line">${when} ${providers[row.provider] || escapeHtml(row.provider)} ${kinds[row.kind] || escapeHtml(row.kind)} ${escapeHtml(row.model || "")}${fail} · ${bits.join(" · ")}</div>`;
+  }).join("");
 }
 
 async function refreshBank() {
@@ -236,6 +280,14 @@ async function refreshAll() {
   await refreshBank();
 }
 
+$("resetUsage").onclick = async () => {
+  if (!confirm("确定清空接口用量记录？积分不受影响。")) return;
+  try {
+    const data = await api("/api/usage/reset");
+    renderUsage(data.usage);
+    toast("用量记录已清空");
+  } catch (e) { toast(e.message); }
+};
 $("openOverlay").onclick = () => window.open("/overlay", "overlay", "width=420,height=748");
 $("pauseToggle").onclick = async () => {
   const wantPause = $("pauseToggle").dataset.paused !== "1";
