@@ -115,6 +115,16 @@ html, body {
   min-height: 48px;
   margin-bottom: 22px;
 }
+.meta:not(:empty), .hints:not(:empty), .announce:not(:empty) {
+  background: #121722;
+  border-radius: 14px;
+  width: fit-content;
+  max-width: 92%;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 6px 18px;
+  z-index: 6;
+}
 .hints b {
   color: #fff4cc;
   background: #2a2416;
@@ -129,7 +139,7 @@ html, body {
   min-height: 0;
 }
 .panel {
-  background: rgba(16, 20, 30, .86);
+  background: #141a26;
   border: 1px solid #2b3448;
   border-radius: 22px;
   padding: 16px 16px 10px;
@@ -308,7 +318,12 @@ html, body {
   color: #f0d49a;
   font-size: 28px;
 }
-.likebar { margin: 0 8px 8px; }
+.likebar {
+  margin: 0 8px 8px;
+  background: #10141c;
+  border-radius: 16px;
+  padding: 8px 12px 10px;
+}
 .like-label {
   display: flex;
   justify-content: space-between;

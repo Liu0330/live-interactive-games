@@ -334,10 +334,22 @@ function renderFly(state) {
     flySent = 0;
   }
   trimFly(state.feed);
+  const nowSec = Number(state.now) || Date.now() / 1000;
+  const maxAge = speed + 1;
   for (const item of state.feed || []) {
     if (!item || item.id == null) continue;
-    if (!rememberFly(String(item.id))) continue;
-    if (flyQueue.length >= perSecond) continue;
+    const id = String(item.id);
+    if (flySeen.has(id)) continue;
+    const age = nowSec - Number(item.ts || nowSec);
+    if (age > maxAge) {
+      rememberFly(id);
+      continue;
+    }
+    if (flyQueue.length >= perSecond) {
+      rememberFly(id);
+      continue;
+    }
+    rememberFly(id);
     flyQueue.push(item);
   }
   while (flyQueue.length && flySent < perSecond) {
