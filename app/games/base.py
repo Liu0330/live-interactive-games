@@ -26,6 +26,19 @@ class BaseGame(ABC):
             return 0
         return max(0, int(self.ends_at - time.time()))
 
+    def begin_reveal(self, announcement: str) -> None:
+        """揭晓答案并停留一段时间，之后由管理器决定是否开下一局。"""
+        from app.config import load_config
+
+        raw = load_config().get("intermission_seconds")
+        try:
+            seconds = int(raw)
+        except (TypeError, ValueError):
+            seconds = 8
+        self.status = "reveal"
+        self.reveal_until = time.time() + max(3, min(60, seconds))
+        self.announcement = announcement
+
     def tick(self, now: float | None = None) -> list[str]:
         now = now if now is not None else time.time()
         notes: list[str] = []

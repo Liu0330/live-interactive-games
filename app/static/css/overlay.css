@@ -163,6 +163,41 @@ html, body {
   font-size: 28px;
   margin: 6px 0 10px;
 }
+.danmaku {
+  flex: 0 0 auto;
+  height: 156px;
+  margin: 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.danmaku .line {
+  max-width: 100%;
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(8, 12, 20, .72);
+  color: #f4f7fb;
+  font-size: 26px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: fadechat 8s ease forwards;
+}
+.danmaku .nick { font-weight: 900; margin-right: 8px; }
+.danmaku .line.gift { color: #ffd36a; background: rgba(64, 42, 8, .78); }
+.danmaku .line.like { color: #ffb3c4; background: rgba(64, 16, 32, .72); }
+.danmaku .line.member { color: #b7d4ff; background: rgba(16, 32, 58, .72); }
+@keyframes fadechat {
+  0% { opacity: 0; transform: translateY(10px); }
+  10% { opacity: 1; transform: none; }
+  72% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .center-card {
   flex: 1;
   display: flex;

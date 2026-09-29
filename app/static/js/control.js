@@ -56,6 +56,9 @@ function fillConfig(cfg) {
   $("emojiCategory").value = emoji.category || "rotate";
   $("emojiCountdown").value = emoji.countdown ?? 70;
   $("emojiPinyin").checked = emoji.allow_pinyin !== false;
+  $("autoContinue").checked = cfg.auto_continue !== false;
+  $("intermission").value = cfg.intermission_seconds ?? 8;
+  $("countGapChat").checked = cfg.count_intermission_chat !== false;
   const tiers = cfg.gift_tiers || [];
   const small = tiers.find((t) => t.id === "small") || tiers[0] || {};
   const big = tiers.find((t) => t.id === "big") || tiers[1] || {};
@@ -374,6 +377,9 @@ $("saveParams").onclick = async () => {
         countdown: Number($("emojiCountdown").value || 70),
         allow_pinyin: $("emojiPinyin").checked,
       },
+      auto_continue: $("autoContinue").checked,
+      intermission_seconds: Math.max(3, Math.min(60, Number($("intermission").value || 8))),
+      count_intermission_chat: $("countGapChat").checked,
       chat_model: $("chatModel").value,
     },
   });

@@ -88,10 +88,7 @@ class EmojiGame(BaseGame):
         return "成语" if (self.puzzle.get("category") or self.last_category) != "song" else "歌名"
 
     def on_timeout(self) -> list[str]:
-        params = self._params()
-        self.status = "reveal"
-        self.reveal_until = time.time() + int(params.get("post_round_delay") or 8)
-        self.announcement = f"时间到，答案是 {self.puzzle.get('answer') or ''}"
+        self.begin_reveal(f"时间到，答案是 {self.puzzle.get('answer') or ''}")
         return ["timeout", "announce"]
 
     def skip(self) -> list[str]:
@@ -166,9 +163,7 @@ class EmojiGame(BaseGame):
         self.last_award = award
         self.winner = event.nickname
         self.last_winner = event.nickname
-        self.status = "reveal"
-        self.reveal_until = time.time() + int(params.get("post_round_delay") or 8)
-        self.announcement = f"恭喜 {event.nickname} 猜中了 {self.puzzle.get('answer')}{win_suffix(award)}"
+        self.begin_reveal(f"恭喜 {event.nickname} 猜中了 {self.puzzle.get('answer')}{win_suffix(award)}")
         return ["guess", "win", "announce"]
 
     def public_state(self) -> dict[str, Any]:

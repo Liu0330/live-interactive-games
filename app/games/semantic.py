@@ -83,10 +83,7 @@ class SemanticGame(BaseGame):
         return ["skip", "announce"]
 
     def on_timeout(self) -> list[str]:
-        params = self._params()
-        self.status = "reveal"
-        self.reveal_until = time.time() + int(params.get("post_round_delay") or 8)
-        self.announcement = f"时间到，答案是 {self.secret}"
+        self.begin_reveal(f"时间到，答案是 {self.secret}")
         return ["timeout", "announce"]
 
     def maybe_hint(self, now: float | None = None) -> list[str]:
@@ -294,9 +291,7 @@ class SemanticGame(BaseGame):
         self.winner = nickname
         self.winner_word = word
         self.last_winner = nickname
-        self.status = "reveal"
-        self.reveal_until = time.time() + int(params.get("post_round_delay") or 8)
-        self.announcement = f"恭喜 {nickname} 猜中了，答案是 {self.secret}{win_suffix(award)}"
+        self.begin_reveal(f"恭喜 {nickname} 猜中了，答案是 {self.secret}{win_suffix(award)}")
 
     def unlock_hint(self, nickname: str = "") -> str:
         if self.status != "playing":

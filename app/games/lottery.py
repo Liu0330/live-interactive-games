@@ -129,8 +129,6 @@ class LotteryGame(BaseGame):
         people = unique_participants(self.entries)
         self.winner = pick_weighted(people)
         self.rolling = True
-        self.status = "reveal"
-        self.reveal_until = time.time() + 8
         if self.winner:
             award = grant_win(
                 self.winner["user_id"],
@@ -140,9 +138,10 @@ class LotteryGame(BaseGame):
             )
             self.last_award = award
             self.last_winner = self.winner["nickname"]
-            self.announcement = f"恭喜 {self.winner['nickname']} 中奖{win_suffix(award)}"
+            text = f"恭喜 {self.winner['nickname']} 中奖{win_suffix(award)}"
         else:
-            self.announcement = "本轮没有人参与"
+            text = "本轮没有人参与"
+        self.begin_reveal(text)
         return ["win", "announce"]
 
     def public_state(self) -> dict[str, Any]:

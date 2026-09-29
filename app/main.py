@@ -251,6 +251,9 @@ def api_save_config(body: ConfigBody) -> dict:
         "likes",
         "streak",
         "active_game",
+        "auto_continue",
+        "intermission_seconds",
+        "count_intermission_chat",
     }
     patch = {k: v for k, v in (body.payload or {}).items() if k in allowed}
     if "gift_tiers" in patch:

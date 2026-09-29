@@ -155,10 +155,8 @@ class QuizGame(BaseGame):
         return "已刷新本题"
 
     def on_timeout(self) -> list[str]:
-        self.status = "reveal"
-        self.reveal_until = time.time() + int(self._params().get("post_round_delay") or 6)
         ans = self.question.get("answer") or ""
-        self.announcement = f"时间到，正确答案是 {ans}"
+        self.begin_reveal(f"时间到，正确答案是 {ans}")
         return ["timeout", "announce"]
 
     def skip(self) -> list[str]:
@@ -196,9 +194,7 @@ class QuizGame(BaseGame):
             self.last_award = award
             self.winner = event.nickname
             self.last_winner = event.nickname
-            self.status = "reveal"
-            self.reveal_until = time.time() + int(self._params().get("post_round_delay") or 6)
-            self.announcement = f"恭喜 {event.nickname} 抢答正确{win_suffix(award)}"
+            self.begin_reveal(f"恭喜 {event.nickname} 抢答正确{win_suffix(award)}")
             notes.extend(["win", "announce"])
         elif not correct and _looks_like_attempt(text, self.question):
             note_miss(event.user_id, event.nickname)

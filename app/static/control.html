@@ -62,6 +62,11 @@
           <button class="btn red" id="clearBoard">清空积分榜</button>
         </div>
         <p class="hint">积分、段位、连击和日榜周榜按抖音用户 ID 记在本机（没有 ID 时用昵称），六个玩法共用。切换玩法、开启新回合、重启服务都不会清掉。只有点这里并确认，才会全部清空。</p>
+        <label class="field"><input id="autoContinue" type="checkbox" style="width:auto" checked> 揭晓后自动开始下一局</label>
+        <label class="field">揭晓停留（秒，建议 5–10）</label>
+        <input id="intermission" type="number" min="3" max="60" value="8">
+        <label class="field"><input id="countGapChat" type="checkbox" style="width:auto" checked> 揭晓期间的弹幕计入下一局</label>
+        <p class="hint">默认开着。倒计时结束或有人获胜后，画面先停几秒给观众看答案，然后自己开下一局，可以一直播。跳过当前会停在这一局，不会马上重开。成语接龙每一步超时会换一个新开头；整局接不下去时也会自动重开。</p>
       </section>
 
       <section class="card">

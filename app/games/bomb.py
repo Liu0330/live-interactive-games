@@ -101,8 +101,6 @@ class BombGame(BaseGame):
         return ["start", "announce"]
 
     def on_timeout(self) -> list[str]:
-        self.status = "reveal"
-        self.reveal_until = time.time() + int(self._params().get("post_round_delay") or 6)
         if self.mode == "last_safe" and self.last_safe:
             self.winner = self.last_safe
             award = grant_win(
@@ -112,9 +110,10 @@ class BombGame(BaseGame):
                 reason="bomb",
             )
             self.last_award = award
-            self.announcement = f"时间到，最后安全猜测是 {self.last_safe}{win_suffix(award)}"
+            text = f"时间到，最后安全猜测是 {self.last_safe}{win_suffix(award)}"
         else:
-            self.announcement = f"时间到，炸弹是 {self.secret}"
+            text = f"时间到，炸弹是 {self.secret}"
+        self.begin_reveal(text)
         return ["timeout", "announce"]
 
     def skip(self) -> list[str]:
@@ -191,8 +190,7 @@ class BombGame(BaseGame):
                 self.last_award = award
                 self.announcement = f"{event.nickname} 踩中数字炸弹 {self.secret}{win_suffix(award)}"
             self.last_winner = self.winner
-            self.status = "reveal"
-            self.reveal_until = time.time() + int(self._params().get("post_round_delay") or 6)
+            self.begin_reveal(self.announcement)
             notes.extend(["win", "announce"])
             return notes
         self.low = result["low"]

@@ -38,6 +38,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "tts_voice": "FunAudioLLM/CosyVoice2-0.5B:bella",
     "douyin_room_id": "",
     "active_game": "semantic",
+    "auto_continue": True,
+    "intermission_seconds": 8,
+    "count_intermission_chat": True,
     "points_per_sublevel": 180,
     "rank_names": ["青铜", "白银", "黄金", "铂金", "钻石", "星耀", "王者", "挑战者"],
     "semantic": {

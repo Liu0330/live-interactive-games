@@ -245,6 +245,25 @@ function renderEmoji(state) {
     </div>`;
 }
 
+function renderFeed(state) {
+  const box = $("danmaku");
+  if (!box) return;
+  const now = Number(state.now) || Date.now() / 1000;
+  const items = (state.feed || []).filter((item) => now - Number(item.ts || 0) < 9).slice(-4);
+  const ids = new Set(items.map((item) => item.id));
+  for (const node of [...box.children]) {
+    if (!ids.has(node.dataset.id)) node.remove();
+  }
+  for (const item of items) {
+    if (box.querySelector(`[data-id="${item.id}"]`)) continue;
+    const row = document.createElement("div");
+    row.className = `line ${item.kind || "chat"}`;
+    row.dataset.id = item.id;
+    row.innerHTML = `<span class="nick">${escapeHtml(item.nickname || "观众")}</span>${escapeHtml(item.text || "")}`;
+    box.appendChild(row);
+  }
+}
+
 function renderLike(state) {
   const bar = state.like_bar || {};
   const target = bar.target || 100;
@@ -309,6 +328,11 @@ function render(state) {
   if (state.reveal && (game === "semantic")) {
     $("meta").textContent += state.status === "reveal" ? ` · 揭晓 ${state.reveal}` : "";
   }
+  if (state.status === "reveal" && state.auto_continue) {
+    const wait = `${state.intermission || 0} 秒后自动下一局`;
+    $("meta").textContent = [$("meta").textContent, wait].filter(Boolean).join(" · ");
+  }
+  renderFeed(state);
   if (state.announce_seq && state.announce_seq !== lastAnnounce) {
     lastAnnounce = state.announce_seq;
     if (state.tts) speak(state.tts);
