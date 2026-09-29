@@ -425,7 +425,7 @@ def api_mock_like(body: LikeBody) -> dict:
 @app.post("/api/mock/member")
 def api_mock_member(body: MemberBody) -> dict:
     mock_ingest.inject_member(body.nickname)
-    payload = manager.snapshot(host=True)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
     _broadcast(payload)
     return {"ok": True, "state": payload}
 
