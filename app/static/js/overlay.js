@@ -2,7 +2,6 @@ const $ = (id) => document.getElementById(id);
 let lastAnnounce = 0;
 let lastAudio = "";
 let lastState = null;
-let boardCursor = 0;
 let seenEffect = 0;
 let shownWelcome = 0;
 let fxTimer = 0;
@@ -14,7 +13,6 @@ let flyQueue = [];
 let flyWindow = 0;
 let flySent = 0;
 let flyPump = 0;
-const BOARD_ORDER = ["day", "week", "all"];
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
@@ -90,12 +88,6 @@ function renderGuesses(list) {
     </div>`).join("");
 }
 
-function currentBoard(state) {
-  const boards = (state && state.boards) || {};
-  const key = BOARD_ORDER[boardCursor % BOARD_ORDER.length];
-  return boards[key] || { label: "总榜", rows: (state && state.leaderboard) || [] };
-}
-
 function renderBoard(list) {
   if (!list || !list.length) {
     return `<div class="empty">暂无积分</div>`;
@@ -115,21 +107,18 @@ function renderBoard(list) {
   }).join("");
 }
 
-function renderMiniBoard(state) {
-  const board = currentBoard(state);
-  const rows = (board.rows || []).slice(0, 4);
-  if (!rows.length) {
-    return `<div class="mini-board"><h3>${escapeHtml(board.label || "积分榜")}</h3><div class="empty">暂无积分</div></div>`;
-  }
-  const body = rows.map((s) => {
-    const streak = Number(s.streak) >= 2 ? ` ${s.streak}连` : "";
-    return `<div class="mini-row"><span>${medal(s.place)}</span><span class="nick">${escapeHtml(s.nickname)}</span><span>${escapeHtml(s.rank_name || "")}${streak}</span><span class="pts">${s.points}</span></div>`;
-  }).join("");
-  return `<div class="mini-board"><h3>${escapeHtml(board.label || "积分榜")}</h3>${body}</div>`;
+function renderSideBoards(state) {
+  const boards = (state && state.boards) || {};
+  const block = (key, title) => {
+    const board = boards[key] || { label: title, rows: [] };
+    const rows = (board.rows || []).slice(0, 4);
+    const body = rows.length ? renderBoard(rows) : `<div class="empty">暂无</div>`;
+    return `<section class="panel"><h3>${escapeHtml(board.label || title)}</h3><div class="list">${body}</div></section>`;
+  };
+  return `<div class="board-stack">${block("day", "日榜")}${block("week", "周榜")}</div>`;
 }
 
 function renderSemantic(state) {
-  const board = currentBoard(state);
   $("title").textContent = state.title || "挑战最强大脑";
   $("rightStat").textContent = `最高 ${(state.max_score || 0).toFixed(1)}%`;
   $("meta").textContent = [state.category, state.answer_len ? `答案 ${state.answer_len}` : ""].filter(Boolean).join(" · ");
@@ -141,10 +130,7 @@ function renderSemantic(state) {
       <h3>相似度排名</h3>
       <div class="list">${renderGuesses(state.guesses)}</div>
     </div>
-    <div class="panel">
-      <h3>${escapeHtml(board.label || "积分榜")}</h3>
-      <div class="list">${renderBoard(board.rows)}</div>
-    </div>`;
+    ${renderSideBoards(state)}`;
 }
 
 function renderQuiz(state) {
@@ -161,15 +147,15 @@ function renderQuiz(state) {
   )).join("");
   const clue = state.clue ? `<div class="clue">${escapeHtml(state.clue)}</div>` : "";
   $("body").innerHTML = `
-    <div class="panel" style="grid-column:1/-1">
+    <div class="panel">
       <div class="center-card">
         <div class="q">${escapeHtml(state.question || "等待出题")}</div>
         <div class="opts">${opts}</div>
         ${clue}
         <div class="chips">${attempts}</div>
-        ${renderMiniBoard(state)}
       </div>
-    </div>`;
+    </div>
+    ${renderSideBoards(state)}`;
 }
 
 function renderBomb(state) {
@@ -182,14 +168,14 @@ function renderBomb(state) {
     return `<div class="chip">${g.nickname} ${g.guess} ${tip}</div>`;
   }).join("");
   $("body").innerHTML = `
-    <div class="panel" style="grid-column:1/-1">
+    <div class="panel">
       <div class="center-card">
         <div>当前范围</div>
         <div class="range">${state.low} — ${state.high}</div>
         <div class="chips">${rows}</div>
-        ${renderMiniBoard(state)}
       </div>
-    </div>`;
+    </div>
+    ${renderSideBoards(state)}`;
 }
 
 function renderLottery(state) {
@@ -200,13 +186,13 @@ function renderLottery(state) {
   const chips = (state.participants || []).map((p) => `<div class="chip">${p.nickname}</div>`).join("");
   const win = state.winner ? `<div class="winner-pop">🎉 ${state.winner.nickname}</div>` : "";
   $("body").innerHTML = `
-    <div class="panel" style="grid-column:1/-1">
+    <div class="panel">
       <div class="center-card">
         ${win}
         <div class="chips">${chips || "等待参与…"}</div>
-        ${renderMiniBoard(state)}
       </div>
-    </div>`;
+    </div>
+    ${renderSideBoards(state)}`;
 }
 
 function renderIdiom(state) {
@@ -221,15 +207,15 @@ function renderIdiom(state) {
     `<div class="chip">${escapeHtml(item.nickname)} ${escapeHtml(item.idiom)}</div>`
   )).join("");
   $("body").innerHTML = `
-    <div class="panel" style="grid-column:1/-1">
+    <div class="panel">
       <div class="center-card">
         <div class="chain-head">${escapeHtml(state.head || "—")}</div>
         <div class="chain-need">${escapeHtml(need)}</div>
         <div class="chain-list">${chain}</div>
         <div class="chips">${links}</div>
-        ${renderMiniBoard(state)}
       </div>
-    </div>`;
+    </div>
+    ${renderSideBoards(state)}`;
 }
 
 function renderEmoji(state) {
@@ -243,13 +229,13 @@ function renderEmoji(state) {
     `<div class="chip">${escapeHtml(item.nickname)}：${escapeHtml(item.text)}${item.correct ? " ✓" : ""}</div>`
   )).join("");
   $("body").innerHTML = `
-    <div class="panel" style="grid-column:1/-1">
+    <div class="panel">
       <div class="center-card">
         <div class="emoji-row">${escapeHtml(state.emojis || "🎁")}</div>
         <div class="chips">${attempts || "观众发弹幕作答"}</div>
-        ${renderMiniBoard(state)}
       </div>
-    </div>`;
+    </div>
+    ${renderSideBoards(state)}`;
 }
 
 function rememberFly(id) {
@@ -327,7 +313,7 @@ function placeFlyBand(layer, bandPx, bandTop) {
   let top = (zoneTop - stageRect.top) / scale;
   const room = Math.max(0, zoneHeight - height);
   top += room * (Math.max(0, Math.min(100, bandTop)) / 100);
-  const heroes = ["#timer", "#likebar", "#pauseFlag", ".q", ".emoji-row", ".chain-head", ".chain-need"]
+  const heroes = ["#timer", "#likebar", "#pauseFlag", ".q", ".opts", ".emoji-row", ".chain-head", ".chain-need", ".range", ".winner-pop"]
     .flatMap((sel) => [...document.querySelectorAll(sel)])
     .map((el) => el.getBoundingClientRect())
     .filter((rect) => rect.height > 4 && rect.width > 4);
@@ -515,8 +501,4 @@ function connect() {
 window.addEventListener("resize", fit);
 fit();
 connect();
-setInterval(() => {
-  boardCursor = (boardCursor + 1) % BOARD_ORDER.length;
-  if (lastState) render(lastState);
-}, 8000);
 fetch("/api/state").then((r) => r.json()).then(render);

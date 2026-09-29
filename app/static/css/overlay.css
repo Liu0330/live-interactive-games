@@ -137,6 +137,23 @@ html, body {
   gap: 18px;
   min-height: 0;
 }
+.board-stack {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.board-stack .panel { flex: 1; min-height: 0; }
+.board-stack h3 { font-size: 28px; margin-bottom: 8px; }
+.board-stack .score { margin-bottom: 6px; gap: 8px; }
+.board-stack .score .nick { font-size: 20px; }
+.board-stack .score .pts { font-size: 22px; }
+.board-stack .empty { padding: 10px 4px; font-size: 20px; }
+.panel .center-card { min-height: 0; overflow: hidden; }
+.panel .emoji-row { font-size: 84px; letter-spacing: 6px; }
+.panel .chain-head { font-size: 64px; letter-spacing: 4px; }
+.panel .q { font-size: 36px; }
+.panel .opts { font-size: 26px; gap: 10px; }
 .panel {
   background: #141a26;
   border: 1px solid #2b3448;
