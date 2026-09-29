@@ -4,7 +4,7 @@ import time
 import uuid
 from pathlib import Path
 
-from app.config import api_key, load_config
+from app.config import api_key, load_config, minimax_ready
 from app.paths import TTS_DIR, ensure_user_dirs
 
 
@@ -16,9 +16,12 @@ def prepare_announcement(text: str) -> dict:
     if not cfg.get("tts_enabled", True):
         return {"text": text, "audio_url": "", "use_browser": False}
     audio_url = ""
-    if api_key():
+    if minimax_ready() or api_key():
         try:
-            from app.siliconflow import synthesize_speech
+            if minimax_ready():
+                from app.minimax import synthesize_speech
+            else:
+                from app.siliconflow import synthesize_speech
 
             raw = synthesize_speech(text)
             ensure_user_dirs()

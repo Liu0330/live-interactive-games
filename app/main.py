@@ -8,10 +8,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import db
-from app.config import CHAT_MODELS, api_key, load_config, public_config, save_config
+from app.config import CHAT_MODELS, api_key, clamp_tts_speed, load_config, public_config, save_config
 from app.games.manager import GAME_LABELS, manager
-from app.games.quiz import load_questions, save_questions
-from app.games.wordbank import add_words, load_words, remove_word, sanitize_generated, save_words
+from app.games.quiz import load_questions
+from app.engagement import sanitize_gift_tiers, sanitize_likes, sanitize_streak
 from app.ingest.douyin import douyin_ingest, extract_room_token
 from app.ingest.mock import mock_ingest
 from app.paths import STATIC_DIR, ensure_user_dirs
@@ -30,6 +30,24 @@ class KeyBody(BaseModel):
     chat_model: str = ""
 
 
+class LlmBody(BaseModel):
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_model: str = ""
+    llm_related_can_win: bool = False
+
+
+class MinimaxBody(BaseModel):
+    minimax_api_key: str = ""
+    minimax_base_url: str = ""
+    minimax_chat_model: str = ""
+    minimax_embed_model: str = ""
+    minimax_tts_model: str = ""
+    minimax_tts_voice: str = ""
+    minimax_tts_speed: float = 0.92
+    llm_related_can_win: bool = False
+
+
 class GenerateBody(BaseModel):
     count: int = 50
     theme: str = ""
@@ -45,6 +63,10 @@ class SwitchBody(BaseModel):
     game: str
 
 
+class PauseBody(BaseModel):
+    paused: bool = True
+
+
 class ChatBody(BaseModel):
     nickname: str = "测试观众"
     content: str = ""
@@ -54,6 +76,16 @@ class GiftBody(BaseModel):
     nickname: str = "测试观众"
     gift_name: str = "小心心"
     count: int = 1
+    gift_value: int = 0
+
+
+class LikeBody(BaseModel):
+    nickname: str = "测试观众"
+    count: int = 10
+
+
+class MemberBody(BaseModel):
+    nickname: str = "新观众"
 
 
 class RoomBody(BaseModel):
@@ -71,6 +103,51 @@ class WordBody(BaseModel):
 
 class ConfigBody(BaseModel):
     payload: dict = Field(default_factory=dict)
+
+
+class EmojiGenerateBody(BaseModel):
+    count: int = 4
+    category: str = "idiom"
+
+
+class EmojiDeleteBody(BaseModel):
+    puzzle_id: str = ""
+
+
+class BankTextBody(BaseModel):
+    kind: str = "word"
+    text: str = ""
+    category: str = ""
+
+
+class BankGenerateBody(BaseModel):
+    kind: str = "word"
+    category: str = ""
+    theme: str = ""
+    count: int = 8
+    auto_add: bool = False
+
+
+class BankSaveBody(BaseModel):
+    kind: str = "word"
+    items: list[dict] = Field(default_factory=list)
+
+
+class BankUpdateBody(BaseModel):
+    item_id: str = ""
+    category: str = ""
+    label: str = ""
+    extra: str = ""
+    text: str = ""
+
+
+class BankDeleteBody(BaseModel):
+    item_id: str = ""
+
+
+class BankReviewBody(BaseModel):
+    suggestion_id: int = 0
+    action: str = "approve"
 
 
 def _html(name: str) -> HTMLResponse:
@@ -94,13 +171,19 @@ def _tick_loop() -> None:
         time.sleep(1)
         try:
             notes = manager.tick()
-            payload = manager.snapshot(host=True)
-            if "announce" in notes or manager.announce_seq != _last_announce_seq:
-                _last_announce_seq = manager.announce_seq
-                payload["tts"] = prepare_announcement(manager.last_announce)
+            payload = _with_tts(manager.snapshot(host=True), force="announce" in notes)
             _broadcast(payload)
         except Exception:
             continue
+
+
+def _with_tts(payload: dict, force: bool = False) -> dict:
+    global _last_announce_seq
+    if force or manager.announce_seq != _last_announce_seq:
+        _last_announce_seq = manager.announce_seq
+        if manager.last_announce:
+            payload["tts"] = prepare_announcement(manager.last_announce)
+    return payload
 
 
 def _broadcast(payload: dict | None = None) -> None:
@@ -171,7 +254,9 @@ def api_config() -> dict:
     data = public_config()
     data["ingest"] = douyin_ingest.status().as_dict()
     data["games"] = GAME_LABELS
-    data["word_count"] = len(load_words())
+    from app.banks import playable_words
+
+    data["word_count"] = len(playable_words())
     data["question_count"] = len(load_questions())
     data["chat_models"] = CHAT_MODELS
     return data
@@ -181,6 +266,15 @@ def api_config() -> dict:
 def api_save_config(body: ConfigBody) -> dict:
     allowed = {
         "chat_model",
+        "llm_base_url",
+        "llm_model",
+        "llm_related_can_win",
+        "llm_related_count",
+        "minimax_base_url",
+        "minimax_chat_model",
+        "minimax_embed_model",
+        "minimax_tts_model",
+        "minimax_tts_voice",
         "embed_model",
         "tts_enabled",
         "tts_model",
@@ -192,10 +286,25 @@ def api_save_config(body: ConfigBody) -> dict:
         "quiz",
         "bomb",
         "lottery",
+        "idiom",
+        "emoji",
         "gifts",
+        "gift_tiers",
+        "likes",
+        "streak",
         "active_game",
+        "auto_continue",
+        "intermission_seconds",
+        "count_intermission_chat",
+        "danmaku",
     }
     patch = {k: v for k, v in (body.payload or {}).items() if k in allowed}
+    if "gift_tiers" in patch:
+        patch["gift_tiers"] = sanitize_gift_tiers(patch["gift_tiers"])
+    if "likes" in patch:
+        patch["likes"] = sanitize_likes(patch["likes"])
+    if "streak" in patch:
+        patch["streak"] = sanitize_streak(patch["streak"])
     save_config(patch)
     return {"ok": True, "config": public_config()}
 
@@ -223,38 +332,251 @@ def api_test_key() -> dict:
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/llm")
+def api_save_llm(body: LlmBody) -> dict:
+    patch: dict = {
+        "llm_base_url": body.llm_base_url.strip(),
+        "llm_model": body.llm_model.strip() or "glm-5.2",
+        "llm_related_can_win": bool(body.llm_related_can_win),
+    }
+    if body.llm_api_key.strip():
+        patch["llm_api_key"] = body.llm_api_key.strip()
+    save_config(patch)
+    return {"ok": True, "config": public_config()}
+
+
+@app.post("/api/minimax")
+def api_save_minimax(body: MinimaxBody) -> dict:
+    patch: dict = {
+        "minimax_base_url": body.minimax_base_url.strip() or "https://api.minimaxi.com",
+        "minimax_chat_model": body.minimax_chat_model.strip() or "MiniMax-M3",
+        "minimax_embed_model": body.minimax_embed_model.strip() or "embo-01",
+        "minimax_tts_model": body.minimax_tts_model.strip() or "speech-02-turbo",
+        "minimax_tts_voice": body.minimax_tts_voice.strip() or "presenter_female",
+        "minimax_tts_speed": clamp_tts_speed(body.minimax_tts_speed),
+        "llm_related_can_win": bool(body.llm_related_can_win),
+    }
+    if body.minimax_api_key.strip():
+        patch["minimax_api_key"] = body.minimax_api_key.strip()
+    save_config(patch)
+    return {"ok": True, "config": public_config()}
+
+
+@app.post("/api/minimax/test")
+def api_test_minimax() -> dict:
+    from app.config import minimax_ready
+    from app.minimax import MinimaxError, test_connection
+
+    if not minimax_ready():
+        raise HTTPException(400, "请先保存 MiniMax 密钥")
+    try:
+        return test_connection()
+    except MinimaxError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/llm/test")
+def api_test_llm() -> dict:
+    from app.config import llm_ready
+    from app.llm import ChatError, test_connection
+
+    if not llm_ready():
+        raise HTTPException(400, "请先保存对话接口地址和密钥")
+    try:
+        return test_connection()
+    except ChatError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.post("/api/generate")
 def api_generate(body: GenerateBody) -> dict:
-    from app.siliconflow import SiliconFlowError, generate_questions, generate_words
+    from app.banks import draft, save_drafts
+    from app.llm import ChatError
+    from app.minimax import MinimaxError
 
+    kind = "question" if body.kind == "questions" else "word"
     try:
-        if body.kind == "questions":
-            items = generate_questions(body.count, body.theme)
-            bank = save_questions(items, overwrite=body.overwrite)
-            return {"ok": True, "count": len(bank), "added": len(items)}
-        words = sanitize_generated(generate_words(body.count, body.theme))
-        bank = add_words(words, overwrite=body.overwrite)
-        return {"ok": True, "count": len(bank), "added": len(words), "words": words}
-    except SiliconFlowError as exc:
+        rows = draft(kind, body.theme, body.theme, body.count)
+        saved = save_drafts(kind, rows)
+    except (ChatError, MinimaxError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "count": len(saved["added"]), "added": len(saved["added"]), "words": [item.get("word") or item.get("question") for item in saved["added"]]}
 
 
 @app.get("/api/words")
 def api_words() -> dict:
-    words = load_words()
+    from app.banks import playable_words
+
+    words = playable_words()
     return {"words": words, "count": len(words)}
 
 
 @app.post("/api/words")
 def api_set_words(body: WordsBody) -> dict:
-    words = save_words(body.words) if body.overwrite else add_words(body.words)
+    from app.banks import add_text, playable_words
+
+    if body.overwrite:
+        raise HTTPException(400, "为避免清掉已有词库，请逐条删除，不要整库覆盖")
+    add_text("word", "\n".join(body.words), source="manual")
+    words = playable_words()
     return {"ok": True, "count": len(words), "words": words}
 
 
 @app.post("/api/words/delete")
 def api_del_word(body: WordBody) -> dict:
-    words = remove_word(body.word.strip())
+    from app.banks import playable_words, remove_item
+
+    word = body.word.strip()
+    remove_item(f"file:word:{word}")
+    words = playable_words()
     return {"ok": True, "count": len(words), "words": words}
+
+
+@app.get("/api/bank")
+def api_bank(kind: str = "word", q: str = "", category: str = "") -> dict:
+    from app.banks import catalog
+
+    try:
+        return catalog(kind, q, category)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/bank/items")
+def api_bank_items(body: BankTextBody) -> dict:
+    from app.banks import add_text
+
+    try:
+        result = add_text(body.kind, body.text, body.category, source="manual")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, **result}
+
+
+@app.post("/api/bank/generate")
+def api_bank_generate(body: BankGenerateBody) -> dict:
+    from app.banks import draft, save_drafts
+    from app.llm import ChatError
+    from app.minimax import MinimaxError
+
+    try:
+        rows = draft(body.kind, body.category, body.theme, body.count)
+        saved = save_drafts(body.kind, rows) if body.auto_add else {"added": [], "skipped": [], "rejected": []}
+    except (ChatError, MinimaxError, ValueError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "drafts": rows, "added": saved["added"]}
+
+
+@app.post("/api/bank/save")
+def api_bank_save(body: BankSaveBody) -> dict:
+    from app.banks import save_drafts
+
+    try:
+        result = save_drafts(body.kind, body.items, source="ai")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, **result}
+
+
+@app.post("/api/bank/update")
+def api_bank_update(body: BankUpdateBody) -> dict:
+    from app.banks import update_item
+
+    try:
+        item = update_item(body.item_id, body.category, body.label, body.extra, body.text)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "item": item}
+
+
+@app.post("/api/bank/delete")
+def api_bank_delete(body: BankDeleteBody) -> dict:
+    from app.banks import remove_item
+
+    remove_item(body.item_id)
+    return {"ok": True}
+
+
+@app.post("/api/bank/import")
+def api_bank_import(body: BankTextBody) -> dict:
+    from app.banks import add_text
+
+    try:
+        result = add_text(body.kind, body.text, body.category, source="import")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, **result}
+
+
+@app.get("/api/bank/export")
+def api_bank_export(kind: str = "word", fmt: str = "txt"):
+    from fastapi.responses import Response
+
+    from app.banks import export_text
+
+    try:
+        text, filename, media = export_text(kind, "csv" if fmt == "csv" else "txt")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return Response(content=text, media_type=media, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/api/bank/suggestions")
+def api_bank_suggestions() -> dict:
+    from app.banks import list_suggestions
+
+    return {"suggestions": list_suggestions()}
+
+
+@app.post("/api/bank/suggestions/review")
+def api_bank_review(body: BankReviewBody) -> dict:
+    from app.banks import review_suggestion
+
+    try:
+        return review_suggestion(body.suggestion_id, body.action)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/emoji/puzzles")
+def api_emoji_puzzles() -> dict:
+    from app.games.emoji_bank import all_puzzles
+
+    puzzles = all_puzzles()
+    return {"puzzles": puzzles, "count": len(puzzles)}
+
+
+@app.post("/api/emoji/generate")
+def api_emoji_generate(body: EmojiGenerateBody) -> dict:
+    from app.games.emoji_bank import generate_with_model
+    from app.llm import ChatError
+    from app.minimax import MinimaxError
+
+    try:
+        saved = generate_with_model(body.count, body.category)
+    except (ChatError, MinimaxError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "added": len(saved), "puzzles": saved}
+
+
+@app.post("/api/emoji/delete")
+def api_emoji_delete(body: EmojiDeleteBody) -> dict:
+    from app.games.emoji_bank import all_puzzles, delete_puzzle
+
+    delete_puzzle(body.puzzle_id)
+    puzzles = all_puzzles()
+    return {"ok": True, "count": len(puzzles), "puzzles": puzzles}
+
+
+@app.post("/api/pause")
+def api_pause(body: PauseBody) -> dict:
+    if body.paused:
+        manager.pause()
+    else:
+        manager.resume()
+    payload = _with_tts(manager.snapshot(host=True))
+    _broadcast(payload)
+    return {"ok": True, "paused": manager.paused, "state": payload}
 
 
 @app.post("/api/game/switch")
@@ -267,8 +589,7 @@ def api_switch(body: SwitchBody) -> dict:
 @app.post("/api/round/start")
 def api_start(body: ControlBody) -> dict:
     manager.start_round(body.specified)
-    payload = manager.snapshot(host=True)
-    payload["tts"] = prepare_announcement(manager.last_announce)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
     _broadcast(payload)
     return {"ok": True, "state": payload}
 
@@ -276,10 +597,19 @@ def api_start(body: ControlBody) -> dict:
 @app.post("/api/round/skip")
 def api_skip() -> dict:
     manager.skip()
-    payload = manager.snapshot(host=True)
-    payload["tts"] = prepare_announcement(manager.last_announce)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
     _broadcast(payload)
     return {"ok": True, "state": payload}
+
+
+@app.post("/api/usage/reset")
+def api_reset_usage() -> dict:
+    from app.usage import reset_usage, usage_summary
+
+    reset_usage()
+    usage = usage_summary()
+    _broadcast()
+    return {"ok": True, "usage": usage}
 
 
 @app.post("/api/leaderboard/clear")
@@ -294,18 +624,31 @@ def api_mock_chat(body: ChatBody) -> dict:
     if not body.content.strip():
         raise HTTPException(400, "请填写猜词内容")
     mock_ingest.inject_chat(body.nickname, body.content)
-    payload = manager.snapshot(host=True)
-    if manager.announce_seq:
-        payload["tts"] = prepare_announcement(manager.last_announce)
+    payload = _with_tts(manager.snapshot(host=True))
     _broadcast(payload)
     return {"ok": True, "state": payload}
 
 
 @app.post("/api/mock/gift")
 def api_mock_gift(body: GiftBody) -> dict:
-    mock_ingest.inject_gift(body.nickname, body.gift_name, body.count)
-    payload = manager.snapshot(host=True)
-    payload["tts"] = prepare_announcement(manager.last_announce)
+    mock_ingest.inject_gift(body.nickname, body.gift_name, body.count, body.gift_value)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
+    _broadcast(payload)
+    return {"ok": True, "state": payload}
+
+
+@app.post("/api/mock/like")
+def api_mock_like(body: LikeBody) -> dict:
+    mock_ingest.inject_like(body.nickname, body.count)
+    payload = _with_tts(manager.snapshot(host=True))
+    _broadcast(payload)
+    return {"ok": True, "state": payload}
+
+
+@app.post("/api/mock/member")
+def api_mock_member(body: MemberBody) -> dict:
+    mock_ingest.inject_member(body.nickname)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
     _broadcast(payload)
     return {"ok": True, "state": payload}
 

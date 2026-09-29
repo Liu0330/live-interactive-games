@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=1080">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <title>游戏画面</title>
-  <link rel="stylesheet" href="/static/css/shared.css">
-  <link rel="stylesheet" href="/static/css/overlay.css">
+  <link rel="stylesheet" href="/static/css/shared.css?v=20260929d">
+  <link rel="stylesheet" href="/static/css/overlay.css?v=20260929d">
 </head>
 <body>
   <div class="stage" id="stage">
@@ -16,15 +16,28 @@
       <div class="timer" id="timer">00:00</div>
       <div class="right" id="rightStat">最高 0.0%</div>
     </div>
+    <div class="pause-flag" id="pauseFlag" hidden>暂停中</div>
+    <div class="likebar" id="likebar">
+      <div class="like-label">
+        <span id="likeTitle">点赞进度</span>
+        <span id="likeCount">0 / 100</span>
+      </div>
+      <div class="like-track"><div class="like-fill" id="likeFill"></div></div>
+    </div>
+    <div class="bonus" id="bonus"></div>
     <div class="meta" id="meta"></div>
     <div class="hints" id="hints"></div>
     <div class="announce" id="announce"></div>
+    <div class="welcome" id="welcome"></div>
+    <div class="fly-layer" id="fly"></div>
     <div class="columns" id="body"></div>
+    <div class="danmaku" id="danmaku"></div>
+    <div class="fx" id="fx" hidden></div>
     <div class="footer">
       <h4>规则 · 礼物打赏</h4>
       <div class="gifts" id="gifts"></div>
     </div>
   </div>
-  <script src="/static/js/overlay.js"></script>
+  <script src="/static/js/overlay.js?v=20260929d"></script>
 </body>
 </html>

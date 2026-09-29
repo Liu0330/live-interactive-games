@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 
 
 class BaseGame(ABC):
@@ -19,14 +20,28 @@ class BaseGame(ABC):
         self.reveal_until = 0.0
         self.announcement = ""
         self.last_winner = ""
+        self.last_award: dict | None = None
 
     def remaining(self) -> int:
         if self.status != "playing":
             return 0
-        return max(0, int(self.ends_at - time.time()))
+        return max(0, int(self.ends_at - clock_now()))
+
+    def begin_reveal(self, announcement: str) -> None:
+        """揭晓答案并停留一段时间，之后由管理器决定是否开下一局。"""
+        from app.config import load_config
+
+        raw = load_config().get("intermission_seconds")
+        try:
+            seconds = int(raw)
+        except (TypeError, ValueError):
+            seconds = 8
+        self.status = "reveal"
+        self.reveal_until = clock_now() + max(3, min(60, seconds))
+        self.announcement = announcement
 
     def tick(self, now: float | None = None) -> list[str]:
-        now = now if now is not None else time.time()
+        now = now if now is not None else clock_now()
         notes: list[str] = []
         if self.status == "playing" and now >= self.ends_at:
             notes.extend(self.on_timeout())
@@ -53,6 +68,19 @@ class BaseGame(ABC):
 
     def on_gift(self, event: ChatEvent) -> list[str]:
         return []
+
+    def add_time(self, seconds: int) -> str:
+        seconds = int(seconds or 0)
+        if self.status != "playing" or seconds <= 0:
+            return ""
+        self.ends_at += seconds
+        return f"加时 {seconds} 秒"
+
+    def unlock_hint(self, nickname: str = "") -> str:
+        return ""
+
+    def refresh_prompt(self) -> str:
+        return ""
 
     @abstractmethod
     def public_state(self) -> dict[str, Any]:

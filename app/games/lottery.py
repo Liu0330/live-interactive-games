@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import random
-import time
 from typing import Any
 
 from app.bus import ChatEvent
+from app.clock import now as clock_now
 from app.config import load_config
-from app.db import add_points
 from app.games.base import BaseGame
+from app.scoring import grant_win, win_suffix
 
 
 def unique_participants(entries: list[dict]) -> list[dict]:
@@ -61,7 +61,7 @@ class LotteryGame(BaseGame):
         self.winner = None
         self.rolling = False
         self.status = "playing"
-        self.started_at = time.time()
+        self.started_at = clock_now()
         self.ends_at = self.started_at + int(params.get("duration") or 60)
         self.announcement = f"发送「{self.keyword}」参与抽奖"
         return ["start", "announce"]
@@ -73,6 +73,19 @@ class LotteryGame(BaseGame):
         self.status = "idle"
         self.announcement = "已取消本轮抽奖"
         return ["skip", "announce"]
+
+    def unlock_hint(self, nickname: str = "") -> str:
+        if self.status != "playing":
+            return ""
+        return "本轮礼物会提高中奖权重"
+
+    def refresh_prompt(self) -> str:
+        if self.status != "playing":
+            return ""
+        self.entries = []
+        self.winner = None
+        self.ends_at = clock_now() + int(self._params().get("duration") or 60)
+        return "已清空名单并重新计时"
 
     def qualifies(self, text: str) -> bool:
         return self.keyword in (text or "").strip()
@@ -116,18 +129,19 @@ class LotteryGame(BaseGame):
         people = unique_participants(self.entries)
         self.winner = pick_weighted(people)
         self.rolling = True
-        self.status = "reveal"
-        self.reveal_until = time.time() + 8
         if self.winner:
-            add_points(
+            award = grant_win(
                 self.winner["user_id"],
                 self.winner["nickname"],
                 int(self._params().get("win_points") or 50),
+                reason="lottery",
             )
+            self.last_award = award
             self.last_winner = self.winner["nickname"]
-            self.announcement = f"恭喜 {self.winner['nickname']} 中奖"
+            text = f"恭喜 {self.winner['nickname']} 中奖{win_suffix(award)}"
         else:
-            self.announcement = "本轮没有人参与"
+            text = "本轮没有人参与"
+        self.begin_reveal(text)
         return ["win", "announce"]
 
     def public_state(self) -> dict[str, Any]:

@@ -73,7 +73,12 @@ def pick_word(specified: str = "", answer_length: int = 0, path: Path | None = N
     specified = (specified or "").strip()
     if specified:
         return specified
-    words = load_words(path)
+    if path is None:
+        from app.banks import playable_words
+
+        words = playable_words()
+    else:
+        words = load_words(path)
     if answer_length:
         filtered = [w for w in words if len(w) == answer_length]
         if filtered:

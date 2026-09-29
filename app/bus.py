@@ -15,6 +15,8 @@ class ChatEvent:
     user_id: str = ""
     gift_name: str = ""
     gift_count: int = 0
+    gift_value: int = 0
+    like_count: int = 0
     event_type: str = "chat"
     ts: float = field(default_factory=time.time)
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex)

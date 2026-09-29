@@ -212,6 +212,10 @@ class DouyinRoomIngest(IngestPlugin):
             with self._lock:
                 if event.event_type == "gift":
                     self._status.gift_count += 1
+                elif event.event_type == "like":
+                    self._status.like_count += event.like_count or event.gift_count or 1
+                elif event.event_type == "member":
+                    self._status.member_count += 1
                 else:
                     self._status.chat_count += 1
 
@@ -348,6 +352,10 @@ def _parse_push_payload(raw: bytes) -> dict[str, Any]:
                 ev = _parse_like(payload)
                 if ev:
                     events.append(ev)
+            elif method == "WebcastMemberMessage":
+                ev = _parse_member(payload)
+                if ev:
+                    events.append(ev)
     except Exception:
         return {"events": [], "cursor": cursor}
     return {"events": events, "cursor": cursor}
@@ -377,6 +385,12 @@ def _parse_gift(payload: bytes) -> ChatEvent | None:
     gift = decode_fields(first_bytes(fields, 15) or first_bytes(fields, 6) or b"")
     name = first_str(gift, 2) or first_str(gift, 1) or "礼物"
     count = first_int(fields, 7) or first_int(fields, 5) or 1
+    value = 0
+    for no in (12, 10, 11):
+        cand = first_int(gift, no)
+        if 1 <= cand <= 30000:
+            value = cand
+            break
     return ChatEvent(
         nickname=nick,
         content=name,
@@ -385,6 +399,7 @@ def _parse_gift(payload: bytes) -> ChatEvent | None:
         event_type="gift",
         gift_name=name,
         gift_count=count or 1,
+        gift_value=value,
     )
 
 
@@ -397,9 +412,24 @@ def _parse_like(payload: bytes) -> ChatEvent | None:
         content="点赞",
         user_id=uid or nick,
         source="douyin",
-        event_type="gift",
+        event_type="like",
         gift_name="点赞",
         gift_count=count or 1,
+        like_count=count or 1,
+    )
+
+
+def _parse_member(payload: bytes) -> ChatEvent | None:
+    fields = decode_fields(payload)
+    uid, nick = _parse_user(first_bytes(fields, 2) or first_bytes(fields, 1))
+    if not nick:
+        return None
+    return ChatEvent(
+        nickname=nick,
+        content="来了",
+        user_id=uid or nick,
+        source="douyin",
+        event_type="member",
     )
 
 

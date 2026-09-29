@@ -30,6 +30,8 @@ header.top h1 span { color: var(--orange); }
   padding: 16px 16px 14px;
 }
 .card.wide { grid-column: 1 / -1; }
+#bankList, #bankPending, #bankPreview { max-height: 280px; overflow: auto; margin-top: 10px; }
+.bank-edit { margin-top: 8px; }
 .card h2 {
   margin: 0 0 12px;
   font-size: 16px;
@@ -38,6 +40,12 @@ header.top h1 span { color: var(--orange); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > * { flex: 1; }
 .row.btns > * { flex: 0 0 auto; }
+.btn.pause {
+  font-size: 22px;
+  padding: 14px 32px;
+  min-width: 148px;
+  letter-spacing: 4px;
+}
 label.field {
   display: block;
   font-size: 12px;
@@ -80,7 +88,29 @@ label.field {
   color: #9aa8c2;
   padding: 0 2px;
 }
+.usage-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.usage-box {
+  background: #0c1018;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.usage-box h3 { margin: 0 0 6px; font-size: 14px; color: #fff; }
+.usage-recent {
+  max-height: 220px;
+  overflow: auto;
+  background: #0c1018;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.usage-line { padding: 4px 0; border-bottom: 1px solid #1c2433; }
 .hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 8px; }
+textarea.short { min-height: 72px; }
 .toast {
   position: fixed;
   right: 18px;
@@ -95,5 +125,5 @@ label.field {
 }
 .toast.show { opacity: 1; }
 @media (max-width: 900px) {
-  .grid { grid-template-columns: 1fr; }
+  .grid, .usage-cols { grid-template-columns: 1fr; }
 }

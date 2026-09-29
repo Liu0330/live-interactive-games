@@ -16,6 +16,7 @@
         <div class="sub">本机地址 http://127.0.0.1:8000/control · 游戏画面 /overlay</div>
       </div>
       <div class="row btns">
+        <button class="btn red pause" id="pauseToggle" type="button" data-paused="0">暂停</button>
         <button class="btn green" id="openOverlay">打开游戏界面</button>
       </div>
     </header>
@@ -29,6 +30,8 @@
           <option value="quiz">弹幕答题</option>
           <option value="bomb">数字炸弹</option>
           <option value="lottery">弹幕抽奖</option>
+          <option value="idiom">成语接龙</option>
+          <option value="emoji">看图猜</option>
         </select>
         <p class="hint">切换后无需重启服务，点「开启新回合」即可。</p>
       </section>
@@ -50,15 +53,53 @@
         <p class="hint" id="scoringMode">计分方式：本地拼音+字面（未配置 API Key）</p>
       </section>
 
+      <section class="card wide">
+        <h2>接口用量</h2>
+        <p class="hint">统计 MiniMax、对话接口和硅基流动返回的用量。对话记输入、输出和合计 token；向量和语音只在接口返回字符数或向量条数时才记。不保存密钥，也不保存提示词。今天按北京时间，本次运行从这次启动服务算起，重启后本次清零，累计一直留着。</p>
+        <div class="usage-cols" id="usageTotals"></div>
+        <label class="field">最近 20 次</label>
+        <div class="usage-recent" id="usageRecent">还没有调用</div>
+        <button class="btn ghost" id="resetUsage" type="button" style="margin-top:10px">清空用量记录</button>
+      </section>
+
       <section class="card">
         <h2>手动控制</h2>
-        <label class="field">指定谜底 / 题目关键字 / 炸弹数字 / 抽奖口令（可空）</label>
-        <input id="specified" placeholder="留空则随机">
+        <label class="field">指定谜底 / 题目关键字 / 炸弹数字 / 抽奖口令 / 成语开头 / 看图猜答案（可空）</label>
+        <input id="specified" placeholder="留空则随机。成语接龙可填开头成语，看图猜可填答案">
         <div class="row btns" style="margin-top:12px">
           <button class="btn" id="startRound">开启新回合</button>
           <button class="btn ghost" id="skipRound">跳过当前</button>
           <button class="btn red" id="clearBoard">清空积分榜</button>
         </div>
+        <p class="hint">积分、段位、连击和日榜周榜按抖音用户 ID 记在本机（没有 ID 时用昵称），六个玩法共用。切换玩法、开启新回合、重启服务都不会清掉。只有点这里并确认，才会全部清空。</p>
+        <label class="field"><input id="autoContinue" type="checkbox" style="width:auto" checked> 揭晓后自动开始下一局</label>
+        <label class="field">揭晓停留（秒，建议 5–10）</label>
+        <input id="intermission" type="number" min="3" max="60" value="8">
+        <label class="field"><input id="countGapChat" type="checkbox" style="width:auto" checked> 揭晓期间的弹幕计入下一局</label>
+        <p class="hint">默认开着。倒计时结束或有人获胜后，画面先停几秒给观众看答案，然后自己开下一局，可以一直播。跳过当前会停在这一局，不会马上重开。成语接龙每一步超时会换一个新开头；整局接不下去时也会自动重开。右上角「暂停」会冻住当前倒计时和自动下一局，弹幕仍显示，但不计分；点「继续」从剩下的时间接着走。刷新控制台或游戏画面后，暂停状态还在。</p>
+      </section>
+
+      <section class="card">
+        <h2>飞过弹幕</h2>
+        <label class="field"><input id="dmEnabled" type="checkbox" style="width:auto" checked> 弹幕从右往左飞过画面</label>
+        <label class="field">穿越时间（秒，越大越慢） / 字号</label>
+        <div class="row">
+          <input id="dmSpeed" type="number" min="4" max="20" step="1" value="8">
+          <input id="dmFont" type="number" min="20" max="72" step="1" value="32">
+        </div>
+        <label class="field">透明度 / 行数 / 每秒最多几条</label>
+        <div class="row">
+          <input id="dmOpacity" type="number" min="0.25" max="1" step="0.01" value="0.82">
+          <input id="dmLanes" type="number" min="2" max="12" step="1" value="4">
+          <input id="dmPerSecond" type="number" min="1" max="20" step="1" value="6">
+        </div>
+        <label class="field">出现位置（距顶部 %） / 弹幕带高度（%）</label>
+        <div class="row">
+          <input id="dmBandTop" type="number" min="0" max="70" step="1" value="18">
+          <input id="dmBandHeight" type="number" min="10" max="50" step="1" value="18">
+        </div>
+        <button class="btn" id="saveDanmaku" type="button" style="margin-top:10px">保存弹幕样式</button>
+        <p class="hint">飞过的弹幕贴在相似度排名和积分榜上，从右往左、多行并排、互不重叠，不另占一大条空白。倒计时、点赞条和答案卡片保持空着。礼物是金色，答对是绿色。人多时超出「每秒最多」的会丢掉。底部聊天条还在。控制台模拟弹幕也会飞过去。改完点保存，游戏画面刷新一次就能看到。</p>
       </section>
 
       <section class="card">
@@ -71,36 +112,130 @@
           <button class="btn" id="sendChat">发弹幕</button>
         </div>
         <div class="row" style="margin-top:10px">
-          <select id="giftName">
-            <option>小心心</option>
-            <option>大啤酒</option>
-            <option>鲜花</option>
-            <option>你最好看</option>
-            <option>点赞</option>
-          </select>
+          <select id="giftName"></select>
           <input id="giftCount" type="number" value="1" min="1">
           <button class="btn" id="sendGift">送礼</button>
         </div>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn" id="sendSmall">模拟小礼物</button>
+          <button class="btn" id="sendBig">模拟大礼物</button>
+          <button class="btn ghost" id="sendMember">模拟进场</button>
+        </div>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn" id="likeBurst">模拟点赞 +20</button>
+          <button class="btn" id="likeFill">模拟点赞灌满</button>
+        </div>
+        <p class="hint" id="likeProgress">点赞进度 0 / 100</p>
       </section>
 
       <section class="card">
-        <h2>AI 生成词库 · 硅基流动</h2>
+        <h2>礼物档位</h2>
+        <p class="hint">小礼物默认解锁提示，大礼物可加时、跳过或刷新当前词/题目。每个礼物和进场都会在画面上出现感谢。语音优先用 MiniMax，其次 CosyVoice，否则用浏览器语音。</p>
+        <label class="field">小礼物名称（逗号或换行）</label>
+        <textarea id="smallNames" class="short"></textarea>
+        <label class="field">小礼物钻石上限（名称对不上时）</label>
+        <input id="smallMax" type="number" min="1" value="9">
+        <label class="field">小礼物效果</label>
+        <select id="smallAction">
+          <option value="hint">解锁提示</option>
+          <option value="add_time">加时</option>
+          <option value="refresh">刷新题目</option>
+          <option value="skip">跳过当前</option>
+          <option value="random_words">注入随机词</option>
+        </select>
+        <label class="field">大礼物名称</label>
+        <textarea id="bigNames" class="short"></textarea>
+        <label class="field">大礼物钻石下限</label>
+        <input id="bigMin" type="number" min="1" value="10">
+        <label class="field">大礼物效果</label>
+        <select id="bigAction">
+          <option value="add_time">加时</option>
+          <option value="skip">跳过当前</option>
+          <option value="refresh">刷新题目</option>
+          <option value="hint">解锁提示</option>
+          <option value="random_words">注入随机词</option>
+        </select>
+        <label class="field">大礼物加时秒数</label>
+        <input id="bigSeconds" type="number" min="5" value="30">
+        <button class="btn" id="saveGifts" style="margin-top:10px">保存礼物档位</button>
+      </section>
+
+      <section class="card">
+        <h2>点赞进度条</h2>
+        <p class="hint" id="bonusStatus">满赞后解锁提示，或开启限时多倍积分。</p>
+        <label class="field">目标赞数</label>
+        <input id="likeTarget" type="number" min="1" value="100">
+        <label class="field">满赞奖励</label>
+        <select id="likeReward">
+          <option value="hint">解锁提示</option>
+          <option value="bonus">限时多倍积分</option>
+        </select>
+        <label class="field">多倍持续秒数 / 倍数</label>
+        <div class="row">
+          <input id="bonusSeconds" type="number" min="5" value="45">
+          <input id="bonusMult" type="number" min="2" max="5" value="2">
+        </div>
+        <button class="btn" id="saveLikes" style="margin-top:10px">保存点赞设置</button>
+      </section>
+
+      <section class="card">
+        <h2>MiniMax（推荐）</h2>
+        <p class="hint">一套密钥同时用于对话、语义向量和礼物/进场语音。弹幕计分只读缓存，不等网络。没配密钥时再看下面的对话接口和硅基流动。</p>
         <label class="field">API Key</label>
-        <input id="apiKey" type="password" placeholder="sk- 开头，仅保存在本机 data/config.json">
+        <input id="mmKey" type="password" placeholder="仅保存在本机，留空则不改已保存的密钥" autocomplete="off">
+        <label class="field">接口根地址</label>
+        <input id="mmBase" placeholder="https://api.minimaxi.com">
+        <label class="field">对话 / 向量 / 语音模型</label>
+        <input id="mmChat" placeholder="MiniMax-M3">
+        <div class="row">
+          <input id="mmEmbed" placeholder="embo-01">
+          <input id="mmTts" list="mmTtsModels" placeholder="speech-02-turbo">
+        </div>
+        <datalist id="mmTtsModels">
+          <option value="speech-02-turbo">speech-02-turbo，更快</option>
+          <option value="speech-02-hd">speech-02-hd，更自然</option>
+        </datalist>
+        <label class="field">语音音色</label>
+        <input id="mmVoice" list="mmVoices" placeholder="presenter_female">
+        <datalist id="mmVoices"></datalist>
+        <label class="field">语速（0.5–2，略慢更口语）</label>
+        <input id="mmTtsSpeed" type="number" min="0.5" max="2" step="0.01" value="0.92">
+        <label class="field"><input id="mmCanWin" type="checkbox" style="width:auto"> 模型分可直接猜中</label>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn ghost" id="saveMinimax">保存 MiniMax</button>
+          <button class="btn ghost" id="testMinimax">测试对话</button>
+        </div>
+        <p class="hint">向量请求约数秒，在后台批量缓存。默认同义词到不了猜中线。新安装默认女主持人，语速 0.92，语气偏高兴。语音模型可改成 speech-02-hd，更自然但稍慢。语音失败时改用浏览器朗读。</p>
+      </section>
+
+      <section class="card">
+        <h2>对话模型</h2>
+        <p class="hint">备用的 OpenAI 兼容对话接口。MiniMax 已配置时，扩词、出题和计分都走 MiniMax。这里没有向量和语音。</p>
+        <label class="field">接口地址</label>
+        <input id="llmBase" placeholder="https://codingplan.alayanew.com/v1">
+        <label class="field">API Key</label>
+        <input id="llmKey" type="password" placeholder="仅保存在本机，留空则不改已保存的密钥" autocomplete="off">
         <label class="field">对话模型</label>
+        <input id="llmModel" placeholder="glm-5.2">
+        <label class="field"><input id="llmCanWin" type="checkbox" style="width:auto"> 模型分可直接猜中</label>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn ghost" id="saveLlm">保存对话接口</button>
+          <button class="btn ghost" id="testLlm">测试对话</button>
+        </div>
+        <p class="hint">单次请求大约十几秒，只在后台预取。弹幕计分立刻查缓存，失败或超时退回本地拼音+字面。默认相关词分数到不了猜中线。</p>
+      </section>
+
+      <section class="card">
+        <h2>硅基流动 · 向量与语音（可选）</h2>
+        <label class="field">API Key</label>
+        <input id="apiKey" type="password" placeholder="sk- 开头，仅保存在本机 data/config.json" autocomplete="off">
+        <label class="field">对话模型（未配上方接口时，扩词库走这里）</label>
         <select id="chatModel"></select>
-        <label class="field">生成数量</label>
-        <input id="genCount" type="number" value="50" min="5" max="80">
-        <label class="field">主题（可选，如 动物 / 食物 / 四字成语）</label>
-        <input id="genTheme" placeholder="日常生活">
-        <label class="field"><input id="overwrite" type="checkbox" style="width:auto"> 覆盖现有</label>
         <div class="row btns" style="margin-top:10px">
           <button class="btn ghost" id="saveKey">保存密钥</button>
           <button class="btn ghost" id="testKey">测试连接</button>
-          <button class="btn" id="genWords">AI 生成并入库</button>
-          <button class="btn ghost" id="genQuiz">生成题目</button>
         </div>
-        <p class="hint" id="aiHint">未配置密钥时走「本地拼音+字面」；有密钥后为「硅基流动向量」，并与谐音分取高。</p>
+        <p class="hint" id="aiHint">优先级：MiniMax 向量与语音，其次硅基流动向量与 CosyVoice，再次通用对话的相关词缓存，最后本地拼音。控制台「计分方式」会写明当前用的是哪一种。</p>
       </section>
 
       <section class="card">
@@ -109,7 +244,12 @@
         <input id="perSub" type="number" value="180">
         <label class="field">段位名称（每行一个，每段 5 小级）</label>
         <textarea id="rankNames"></textarea>
-        <button class="btn" id="saveRanks" style="margin-top:10px">保存</button>
+        <label class="field">连击奖励：每多连对 1 次额外积分 / 上限</label>
+        <div class="row">
+          <input id="streakPer" type="number" min="0" value="15">
+          <input id="streakMax" type="number" min="0" value="60">
+        </div>
+        <button class="btn" id="saveRanks" style="margin-top:10px">保存段位与连击</button>
       </section>
 
       <section class="card">
@@ -129,16 +269,60 @@
           <input id="bombMax" type="number" placeholder="炸弹最大">
           <input id="lotKeyword" placeholder="抽奖">
         </div>
+        <label class="field">成语接龙每步秒数</label>
+        <input id="idiomSeconds" type="number" min="8">
+        <label class="field"><input id="idiomPinyin" type="checkbox" style="width:auto"> 成语接龙允许同音不同字</label>
+        <label class="field">看图猜类别 / 倒计时（秒）</label>
+        <div class="row">
+          <select id="emojiCategory">
+            <option value="rotate">成语和歌名轮换</option>
+            <option value="idiom">只猜成语</option>
+            <option value="song">只猜歌名</option>
+          </select>
+          <input id="emojiCountdown" type="number" min="15">
+        </div>
+        <label class="field"><input id="emojiPinyin" type="checkbox" style="width:auto"> 看图猜允许同音答案</label>
         <button class="btn" id="saveParams" style="margin-top:10px">保存参数</button>
       </section>
 
       <section class="card wide">
-        <h2 id="wordTitle">谜底词库</h2>
+        <h2 id="bankTitle">题库</h2>
+        <p class="hint">语义猜词、弹幕答题、成语接龙、看图猜都可以在这里加题。单条或一行一条批量粘贴，也可以让 MiniMax-M3 按分类和主题生成，先看一遍再入库。观众发「出题 内容」或「出题 #分类 内容」会进待审核，通过后下一局就能抽到。正在进行的这一局不会被换掉。</p>
         <div class="row">
-          <input id="newWord" placeholder="手动添加词语">
-          <button class="btn sm" id="addWord">添加</button>
+          <select id="bankKind">
+            <option value="word">语义猜词</option>
+            <option value="question">弹幕答题</option>
+            <option value="idiom">成语接龙</option>
+            <option value="puzzle">看图猜</option>
+          </select>
+          <input id="bankSearch" placeholder="搜索">
+          <input id="bankCategory" placeholder="分类，如 食物 / 常识 / 成语 / 歌名">
         </div>
-        <div class="tags" id="wordTags"></div>
+        <label class="field" id="bankOneLabel">单条添加</label>
+        <div class="row">
+          <input id="bankOne" placeholder="一个词语">
+          <button class="btn sm" id="bankAddOne">添加</button>
+        </div>
+        <label class="field">批量粘贴（一行一条）</label>
+        <textarea id="bankBulk" class="short" placeholder="食物|面条"></textarea>
+        <div class="row btns">
+          <button class="btn sm" id="bankAddBulk">批量添加</button>
+          <button class="btn ghost sm" id="bankExportTxt" type="button">导出 TXT</button>
+          <button class="btn ghost sm" id="bankExportCsv" type="button">导出 CSV</button>
+          <label class="btn ghost sm">导入<input id="bankImport" type="file" accept=".txt,.csv,text/plain" hidden></label>
+        </div>
+        <label class="field">MiniMax 生成</label>
+        <div class="row">
+          <input id="bankTheme" placeholder="主题，如 早餐、动物成语">
+          <input id="bankCount" type="number" min="1" max="80" value="8">
+          <label class="field" style="margin:0"><input id="bankAuto" type="checkbox" style="width:auto"> 生成后直接入库</label>
+          <button class="btn" id="bankGenerate" type="button">生成</button>
+        </div>
+        <div id="bankPreview"></div>
+        <h2 style="margin-top:14px">待审核出题</h2>
+        <div id="bankPending" class="tags"></div>
+        <div class="tags" id="bankList"></div>
+        <p class="hint" id="bankHint"></p>
       </section>
     </div>
   </div>
