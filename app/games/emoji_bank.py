@@ -87,10 +87,9 @@ def stored_puzzles() -> list[dict]:
 
 
 def all_puzzles() -> list[dict]:
-    hidden = hidden_keys()
-    merged = [item for item in bundled_puzzles() if item["id"] not in hidden]
-    merged.extend(item for item in stored_puzzles() if item["id"] not in hidden)
-    return merged
+    from app.banks import merged_puzzles
+
+    return merged_puzzles()
 
 
 def sanitize_puzzle(item: dict, source: str = "generated") -> dict | None:
@@ -158,53 +157,14 @@ def save_generated(items: list[dict]) -> list[dict]:
 
 
 def delete_puzzle(puzzle_id: str) -> None:
-    key = (puzzle_id or "").strip()
-    if not key:
-        return
-    init_db()
-    conn = sqlite3.connect(DB_PATH, timeout=5)
-    try:
-        if key.startswith("db:"):
-            try:
-                row_id = int(key.split(":", 1)[1])
-            except ValueError:
-                return
-            conn.execute("DELETE FROM emoji_puzzles WHERE id = ?", (row_id,))
-        else:
-            conn.execute(
-                "INSERT INTO emoji_hidden (puzzle_key) VALUES (?) ON CONFLICT(puzzle_key) DO NOTHING",
-                (key,),
-            )
-        conn.commit()
-    finally:
-        conn.close()
+    from app.banks import remove_item
+
+    remove_item(puzzle_id)
 
 
 def generate_with_model(count: int, category: str) -> list[dict]:
-    from app.config import chat_ready
-    from app.llm import ChatError, chat_json
+    from app.banks import draft, save_drafts
 
-    if not chat_ready():
-        raise ChatError("请先配置 MiniMax 或对话接口")
-    kind = "idiom" if category != "song" else "song"
-    label = "四字成语" if kind == "idiom" else "大家熟悉的中文歌名"
-    system = (
-        "你给直播看图猜题出题。只输出 JSON 数组。"
-        "每项含 emojis, answer, hint。"
-        "答案必须真实正确，内容健康，适合抖音全年龄直播，禁止政治、色情、暴力、赌博。"
-    )
-    prompt = (
-        f"请出 {max(1, min(int(count), 12))} 道看图猜{label}。"
-        f'category 固定写 "{kind}"。emojis 用 2 到 4 个表情符号表达答案，不要写汉字。'
-        "hint 只给很短的提示，不要直接写出答案。不要重复常见烂梗。"
-    )
-    data = chat_json(prompt, system, temperature=0.6)
-    rows = data if isinstance(data, list) else []
-    cleaned = []
-    for item in rows:
-        if isinstance(item, dict):
-            item = {**item, "category": kind}
-            puzzle = sanitize_puzzle(item)
-            if puzzle:
-                cleaned.append(puzzle)
-    return save_generated(cleaned)
+    kind = "song" if category == "song" else "idiom"
+    rows = draft("puzzle", kind, "", count)
+    return save_drafts("puzzle", rows)["added"]

@@ -57,7 +57,11 @@ def extra_idioms() -> set[str]:
 
 
 def all_idioms() -> set[str]:
-    return set(bundled_idioms()) | extra_idioms()
+    from app.banks import hidden_keys, idiom_labels
+
+    found = set(bundled_idioms()) | extra_idioms() | idiom_labels()
+    hidden = hidden_keys("idiom")
+    return {word for word in found if word not in hidden}
 
 
 def remember_idiom(idiom: str) -> None:
@@ -79,6 +83,9 @@ def remember_idiom(idiom: str) -> None:
         if _extra_mem is None:
             _extra_mem = set()
         _extra_mem.add(word)
+    from app.banks import upsert_idiom
+
+    upsert_idiom(word)
 
 
 def char_pinyin(ch: str) -> str:
@@ -103,18 +110,16 @@ def links(previous: str, nxt: str, allow_pinyin: bool) -> bool:
 def continuations(head: str, allow_pinyin: bool, used: set[str] | None = None) -> list[str]:
     banned = used or set()
     head_n = normalize_word(head)
-    found = []
-    for word in bundled_idioms():
+    exact = []
+    phonetic = []
+    for word in sorted(all_idioms()):
         if word in banned or word == head_n:
             continue
-        if links(head_n, word, allow_pinyin):
-            found.append(word)
-    for word in extra_idioms():
-        if word in banned or word == head_n or word in found:
-            continue
-        if links(head_n, word, allow_pinyin):
-            found.append(word)
-    return found
+        if word[0] == head_n[-1]:
+            exact.append(word)
+        elif allow_pinyin and links(head_n, word, True):
+            phonetic.append(word)
+    return exact + phonetic
 
 
 def reset_idiom_cache() -> None:

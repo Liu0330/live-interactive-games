@@ -128,20 +128,43 @@ function escapeHtml(value) {
   }[ch]));
 }
 
-function renderEmojiBank(puzzles) {
-  const rows = puzzles || [];
-  $("emojiTitle").textContent = `看图猜题库 · 共 ${rows.length} 题`;
-  $("emojiTags").innerHTML = rows.map((item) => {
-    const kind = item.category === "song" ? "歌名" : "成语";
-    return `<span class="tag">${escapeHtml(item.emojis)} ${escapeHtml(kind)} ${escapeHtml(item.answer)}<button data-puzzle="${escapeHtml(item.id)}" title="删除">×</button></span>`;
-  }).join("");
+const BANK_HINTS = {
+  word: { one: "一个词语", bulk: "食物|面条\n动物|熊猫" },
+  question: { one: "题干|选项A|选项B|选项C|选项D|答案", bulk: "常识|一年有几季？|三|四|五|六|四" },
+  idiom: { one: "四个汉字的成语", bulk: "动物|画蛇添足" },
+  puzzle: { one: "表情|答案|提示", bulk: "成语|🦊🐯|狐假虎威|狐狸\n歌名|🎤🎈|告白气球|情歌" },
+};
+
+function bankKind() {
+  return $("bankKind").value || "word";
 }
 
-function renderWords(words) {
-  $("wordTitle").textContent = `谜底词库 · 共 ${words.length} 词`;
-  $("wordTags").innerHTML = words.map((w) => (
-    `<span class="tag">${w}<button data-w="${w}" title="删除">×</button></span>`
+function renderBank(data) {
+  const items = (data && data.items) || [];
+  const total = data && data.total != null ? data.total : items.length;
+  $("bankTitle").textContent = `题库 · 当前显示 ${items.length} / ${total}`;
+  $("bankHint").textContent = total > items.length ? "结果较多，用搜索缩小范围。内置词表仍在原文件里，这里的新增写进本机数据库。" : "内置词表仍在原文件里。这里新增、修改和删除会写进本机数据库，下一局生效。";
+  $("bankList").innerHTML = items.map((item) => (
+    `<span class="tag" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(item.category)}" data-label="${escapeHtml(item.label)}" data-line="${escapeHtml(item.line)}">${escapeHtml(item.category)} ${escapeHtml(item.label)}<button data-edit="${escapeHtml(item.id)}" title="修改">改</button><button data-del="${escapeHtml(item.id)}" title="删除">×</button></span>`
   )).join("");
+  const pending = (data && data.suggestions) || [];
+  $("bankPending").innerHTML = pending.length ? pending.map((item) => (
+    `<span class="tag">${escapeHtml(item.nickname)}：${escapeHtml(item.text)}<button data-approve="${item.id}">通过</button><button data-reject="${item.id}">拒绝</button></span>`
+  )).join("") : `<span class="hint">暂无。观众可发「出题 内容」。</span>`;
+}
+
+function renderPreview(drafts) {
+  const rows = drafts || [];
+  if (!rows.length) {
+    $("bankPreview").innerHTML = "";
+    return;
+  }
+  $("bankPreview").innerHTML = `<div class="tags">${rows.map((item, index) => {
+    const label = item.word || item.idiom || item.question || `${item.emojis || ""} ${item.answer || ""}`;
+    const mark = item.duplicate ? "（已有）" : "";
+    return `<span class="tag"><label><input type="checkbox" data-draft="${index}" ${item.duplicate ? "" : "checked"} style="width:auto"> ${escapeHtml(item.category || "")} ${escapeHtml(label)}${mark}</label></span>`;
+  }).join("")}</div><button class="btn sm" id="bankSaveDraft" type="button" style="margin-top:8px">入库所选</button>`;
+  $("bankPreview").dataset.drafts = JSON.stringify(rows);
 }
 
 function renderScoring(info) {
@@ -174,17 +197,25 @@ function renderState(state) {
   if (state) renderScoring(state);
 }
 
+async function refreshBank() {
+  const kind = bankKind();
+  const hint = BANK_HINTS[kind] || BANK_HINTS.word;
+  $("bankOne").placeholder = hint.one;
+  $("bankBulk").placeholder = hint.bulk;
+  const q = $("bankSearch").value || "";
+  const category = $("bankCategory").value || "";
+  const data = await api(`/api/bank?kind=${encodeURIComponent(kind)}&q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}`);
+  renderBank(data);
+}
+
 async function refreshAll() {
-  const [cfg, words, state, puzzles] = await Promise.all([
+  const [cfg, state] = await Promise.all([
     api("/api/config"),
-    api("/api/words"),
     api("/api/state?role=control"),
-    api("/api/emoji/puzzles"),
   ]);
   fillConfig(cfg);
-  renderWords(words.words || []);
-  renderEmojiBank(puzzles.puzzles || []);
   renderState(state);
+  await refreshBank();
 }
 
 $("openOverlay").onclick = () => window.open("/overlay", "overlay", "width=420,height=748");
@@ -320,29 +351,6 @@ $("testKey").onclick = async () => {
     toast("连接成功：" + (data.reply || data.model));
   } catch (e) { toast(e.message); }
 };
-$("genWords").onclick = async () => {
-  try {
-    const data = await api("/api/generate", {
-      count: Number($("genCount").value || 50),
-      theme: $("genTheme").value,
-      overwrite: $("overwrite").checked,
-      kind: "words",
-    });
-    toast(`已入库 ${data.added} 词，当前 ${data.count}`);
-    renderWords((await api("/api/words")).words);
-  } catch (e) { toast(e.message); }
-};
-$("genQuiz").onclick = async () => {
-  try {
-    const data = await api("/api/generate", {
-      count: 10,
-      theme: $("genTheme").value,
-      overwrite: false,
-      kind: "questions",
-    });
-    toast(`题库现有 ${data.count} 题`);
-  } catch (e) { toast(e.message); }
-};
 $("saveRanks").onclick = async () => {
   await api("/api/config", {
     payload: {
@@ -385,34 +393,102 @@ $("saveParams").onclick = async () => {
   });
   toast("参数已保存");
 };
-$("addWord").onclick = async () => {
-  const word = $("newWord").value.trim();
-  if (!word) return;
-  const data = await api("/api/words", { words: [word], overwrite: false });
-  $("newWord").value = "";
-  renderWords(data.words);
-};
-$("wordTags").onclick = async (ev) => {
-  const btn = ev.target.closest("button[data-w]");
-  if (!btn) return;
-  const data = await api("/api/words/delete", { word: btn.dataset.w });
-  renderWords(data.words);
-};
-$("genEmoji").onclick = async () => {
+$("bankKind").onchange = () => refreshBank().catch((e) => toast(e.message));
+$("bankSearch").addEventListener("input", () => refreshBank().catch(() => {}));
+$("bankAddOne").onclick = async () => {
+  const text = $("bankOne").value.trim();
+  if (!text) return;
   try {
-    const data = await api("/api/emoji/generate", {
-      count: Number($("emojiGenCount").value || 4),
-      category: $("emojiGenCategory").value,
-    });
-    toast(`已入库 ${data.added} 题`);
-    renderEmojiBank((await api("/api/emoji/puzzles")).puzzles || []);
+    const data = await api("/api/bank/items", { kind: bankKind(), text, category: $("bankCategory").value });
+    $("bankOne").value = "";
+    toast(data.added.length ? `已添加 ${data.added.length} 条` : (data.rejected[0] || data.skipped[0] || "没有新内容"));
+    await refreshBank();
   } catch (e) { toast(e.message); }
 };
-$("emojiTags").onclick = async (ev) => {
-  const btn = ev.target.closest("button[data-puzzle]");
+$("bankAddBulk").onclick = async () => {
+  try {
+    const data = await api("/api/bank/items", { kind: bankKind(), text: $("bankBulk").value, category: $("bankCategory").value });
+    toast(`新增 ${data.added.length}，跳过 ${data.skipped.length}，拒绝 ${data.rejected.length}`);
+    if (data.added.length) $("bankBulk").value = "";
+    await refreshBank();
+  } catch (e) { toast(e.message); }
+};
+$("bankGenerate").onclick = async () => {
+  try {
+    const data = await api("/api/bank/generate", {
+      kind: bankKind(),
+      category: $("bankCategory").value,
+      theme: $("bankTheme").value,
+      count: Number($("bankCount").value || 8),
+      auto_add: $("bankAuto").checked,
+    });
+    if ($("bankAuto").checked) {
+      toast(`已入库 ${data.added.length} 条`);
+      renderPreview([]);
+      await refreshBank();
+    } else {
+      renderPreview(data.drafts || []);
+      toast(`生成 ${((data.drafts) || []).length} 条，确认后入库`);
+    }
+  } catch (e) { toast(e.message); }
+};
+$("bankPreview").onclick = async (ev) => {
+  const btn = ev.target.closest("#bankSaveDraft");
   if (!btn) return;
-  const data = await api("/api/emoji/delete", { puzzle_id: btn.dataset.puzzle });
-  renderEmojiBank(data.puzzles || []);
+  const drafts = JSON.parse($("bankPreview").dataset.drafts || "[]");
+  const picked = [...$("bankPreview").querySelectorAll("input[data-draft]:checked")].map((box) => drafts[Number(box.dataset.draft)]).filter(Boolean);
+  try {
+    const data = await api("/api/bank/save", { kind: bankKind(), items: picked });
+    toast(`已入库 ${data.added.length} 条`);
+    renderPreview([]);
+    await refreshBank();
+  } catch (e) { toast(e.message); }
+};
+function downloadBank(fmt) {
+  window.open(`/api/bank/export?kind=${encodeURIComponent(bankKind())}&fmt=${fmt}`, "_blank");
+}
+$("bankExportTxt").onclick = () => downloadBank("txt");
+$("bankExportCsv").onclick = () => downloadBank("csv");
+$("bankImport").onchange = async () => {
+  const file = $("bankImport").files && $("bankImport").files[0];
+  if (!file) return;
+  const text = await file.text();
+  try {
+    const data = await api("/api/bank/import", { kind: bankKind(), text, category: $("bankCategory").value });
+    toast(`导入新增 ${data.added.length} 条`);
+    await refreshBank();
+  } catch (e) { toast(e.message); }
+  $("bankImport").value = "";
+};
+$("bankList").onclick = async (ev) => {
+  const del = ev.target.closest("button[data-del]");
+  const edit = ev.target.closest("button[data-edit]");
+  if (del) {
+    await api("/api/bank/delete", { item_id: del.dataset.del });
+    await refreshBank();
+    return;
+  }
+  if (!edit) return;
+  const tag = edit.closest(".tag");
+  const text = prompt("修改这一条（分类|内容）", tag.dataset.line || "");
+  if (!text) return;
+  try {
+    await api("/api/bank/update", { item_id: edit.dataset.edit, text });
+    await refreshBank();
+  } catch (e) { toast(e.message); }
+};
+$("bankPending").onclick = async (ev) => {
+  const approve = ev.target.closest("button[data-approve]");
+  const reject = ev.target.closest("button[data-reject]");
+  const button = approve || reject;
+  if (!button) return;
+  try {
+    await api("/api/bank/suggestions/review", {
+      suggestion_id: Number((approve || reject).dataset.approve || reject.dataset.reject),
+      action: approve ? "approve" : "reject",
+    });
+    await refreshBank();
+  } catch (e) { toast(e.message); }
 };
 
 function connectWs() {

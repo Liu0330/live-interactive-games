@@ -13,7 +13,7 @@ from app.games.similarity import normalize_word
 from app.paths import QUESTIONS_PATH
 
 
-def load_questions(path=None) -> list[dict]:
+def load_question_file(path=None) -> list[dict]:
     target = path or QUESTIONS_PATH
     if not target.exists():
         return []
@@ -21,9 +21,32 @@ def load_questions(path=None) -> list[dict]:
     return list(data) if isinstance(data, list) else []
 
 
+def load_questions(path=None) -> list[dict]:
+    items = load_question_file(path)
+    if path is not None:
+        return items
+    from app.banks import hidden_keys, question_items
+
+    hidden = hidden_keys("question")
+    merged = []
+    seen: set[str] = set()
+    for item in items:
+        key = normalize_word(str(item.get("question") or ""))
+        if not key or key in hidden or key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    for item in question_items():
+        key = normalize_word(str(item.get("question") or ""))
+        if key and key not in hidden and key not in seen:
+            seen.add(key)
+            merged.append(item)
+    return merged
+
+
 def save_questions(items: list[dict], overwrite: bool = False, path=None) -> list[dict]:
     target = path or QUESTIONS_PATH
-    current = [] if overwrite else load_questions(target)
+    current = [] if overwrite else load_question_file(target)
     seen = {(q.get("question") or "") for q in current}
     for item in items:
         q = (item.get("question") or "").strip()

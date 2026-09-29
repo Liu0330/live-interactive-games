@@ -192,16 +192,9 @@
         <input id="apiKey" type="password" placeholder="sk- 开头，仅保存在本机 data/config.json" autocomplete="off">
         <label class="field">对话模型（未配上方接口时，扩词库走这里）</label>
         <select id="chatModel"></select>
-        <label class="field">生成数量</label>
-        <input id="genCount" type="number" value="50" min="5" max="80">
-        <label class="field">主题（可选，如 动物 / 食物 / 四字成语）</label>
-        <input id="genTheme" placeholder="日常生活">
-        <label class="field"><input id="overwrite" type="checkbox" style="width:auto"> 覆盖现有</label>
         <div class="row btns" style="margin-top:10px">
           <button class="btn ghost" id="saveKey">保存密钥</button>
           <button class="btn ghost" id="testKey">测试连接</button>
-          <button class="btn" id="genWords">AI 生成并入库</button>
-          <button class="btn ghost" id="genQuiz">生成题目</button>
         </div>
         <p class="hint" id="aiHint">优先级：MiniMax 向量与语音，其次硅基流动向量与 CosyVoice，再次通用对话的相关词缓存，最后本地拼音。控制台「计分方式」会写明当前用的是哪一种。</p>
       </section>
@@ -254,26 +247,43 @@
       </section>
 
       <section class="card wide">
-        <h2 id="wordTitle">谜底词库</h2>
+        <h2 id="bankTitle">题库</h2>
+        <p class="hint">语义猜词、弹幕答题、成语接龙、看图猜都可以在这里加题。单条或一行一条批量粘贴，也可以让 MiniMax-M3 按分类和主题生成，先看一遍再入库。观众发「出题 内容」或「出题 #分类 内容」会进待审核，通过后下一局就能抽到。正在进行的这一局不会被换掉。</p>
         <div class="row">
-          <input id="newWord" placeholder="手动添加词语">
-          <button class="btn sm" id="addWord">添加</button>
-        </div>
-        <div class="tags" id="wordTags"></div>
-      </section>
-
-      <section class="card wide">
-        <h2 id="emojiTitle">看图猜题库</h2>
-        <p class="hint">内置成语和歌名。配好 MiniMax 或对话接口后可以再生成，新题写进本机数据库。这里能看到答案，核对后可删除。直播画面在揭晓前不显示答案。</p>
-        <div class="row">
-          <select id="emojiGenCategory">
-            <option value="idiom">生成成语题</option>
-            <option value="song">生成歌名题</option>
+          <select id="bankKind">
+            <option value="word">语义猜词</option>
+            <option value="question">弹幕答题</option>
+            <option value="idiom">成语接龙</option>
+            <option value="puzzle">看图猜</option>
           </select>
-          <input id="emojiGenCount" type="number" min="1" max="12" value="4">
-          <button class="btn" id="genEmoji">生成并入库</button>
+          <input id="bankSearch" placeholder="搜索">
+          <input id="bankCategory" placeholder="分类，如 食物 / 常识 / 成语 / 歌名">
         </div>
-        <div class="tags" id="emojiTags"></div>
+        <label class="field" id="bankOneLabel">单条添加</label>
+        <div class="row">
+          <input id="bankOne" placeholder="一个词语">
+          <button class="btn sm" id="bankAddOne">添加</button>
+        </div>
+        <label class="field">批量粘贴（一行一条）</label>
+        <textarea id="bankBulk" class="short" placeholder="食物|面条"></textarea>
+        <div class="row btns">
+          <button class="btn sm" id="bankAddBulk">批量添加</button>
+          <button class="btn ghost sm" id="bankExportTxt" type="button">导出 TXT</button>
+          <button class="btn ghost sm" id="bankExportCsv" type="button">导出 CSV</button>
+          <label class="btn ghost sm">导入<input id="bankImport" type="file" accept=".txt,.csv,text/plain" hidden></label>
+        </div>
+        <label class="field">MiniMax 生成</label>
+        <div class="row">
+          <input id="bankTheme" placeholder="主题，如 早餐、动物成语">
+          <input id="bankCount" type="number" min="1" max="80" value="8">
+          <label class="field" style="margin:0"><input id="bankAuto" type="checkbox" style="width:auto"> 生成后直接入库</label>
+          <button class="btn" id="bankGenerate" type="button">生成</button>
+        </div>
+        <div id="bankPreview"></div>
+        <h2 style="margin-top:14px">待审核出题</h2>
+        <div id="bankPending" class="tags"></div>
+        <div class="tags" id="bankList"></div>
+        <p class="hint" id="bankHint"></p>
       </section>
     </div>
   </div>

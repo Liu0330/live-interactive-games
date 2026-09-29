@@ -19,6 +19,7 @@ MIGRATIONS: list[tuple[str, str]] = [
     ("004_model_cache", "补上模型和向量缓存"),
     ("005_game_banks", "补上成语和看图猜题库"),
     ("006_global_accounts", "把已有积分归入全局账号"),
+    ("007_content_banks", "补上可扩充的题库和观众出题"),
 ]
 
 
@@ -283,6 +284,52 @@ def _step_global_accounts(conn: sqlite3.Connection) -> None:
         mapped.add(legacy)
 
 
+def _step_content_banks(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bank_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            dedupe_key TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT '',
+            label TEXT NOT NULL DEFAULT '',
+            payload TEXT NOT NULL DEFAULT '{}',
+            source TEXT NOT NULL DEFAULT 'manual',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            UNIQUE(kind, dedupe_key)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bank_suggestions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT '',
+            text TEXT NOT NULL,
+            nickname TEXT NOT NULL DEFAULT '',
+            user_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at INTEGER NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bank_hidden (
+            kind TEXT NOT NULL,
+            dedupe_key TEXT NOT NULL,
+            PRIMARY KEY (kind, dedupe_key)
+        )
+        """
+    )
+    from app.banks import copy_legacy_rows
+
+    copy_legacy_rows(conn)
+
+
 _STEPS = [
     ("001_core_scores", _step_core_scores),
     ("002_score_progress", _step_score_progress),
@@ -290,4 +337,5 @@ _STEPS = [
     ("004_model_cache", _step_model_cache),
     ("005_game_banks", _step_game_banks),
     ("006_global_accounts", _step_global_accounts),
+    ("007_content_banks", _step_content_banks),
 ]

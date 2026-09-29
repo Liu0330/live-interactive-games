@@ -179,6 +179,29 @@ def test_current_schema_keeps_history_and_backs_up_once(tmp_path, monkeypatch):
     assert score_points[" dy-9"] == 110
     assert score_points["dy-9"] == 50
     assert score_points["dy-1"] == 120
+    conn = sqlite3.connect(db_path)
+    try:
+        idiom = conn.execute(
+            "SELECT source FROM bank_items WHERE kind = 'idiom' AND dedupe_key = '一心一意'"
+        ).fetchone()
+        puzzle = conn.execute(
+            "SELECT COUNT(*) FROM bank_items WHERE kind = 'puzzle' AND dedupe_key = 'idiom:狐假虎威'"
+        ).fetchone()
+        bank_count = conn.execute("SELECT COUNT(*) FROM bank_items").fetchone()[0]
+        assert conn.execute("SELECT text FROM words WHERE id = 1").fetchone()[0] == "春卷"
+    finally:
+        conn.close()
+    assert idiom[0] == "legacy"
+    assert puzzle[0] == 1
+    again = migrate_database(db_path)
+    assert again["applied"] == []
+    assert again["backup"] is None
+    conn = sqlite3.connect(db_path)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM bank_items").fetchone()[0] == bank_count
+        assert conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'words'").fetchone()
+    finally:
+        conn.close()
 
 
 def test_original_scores_table_gains_columns_without_losing_points(tmp_path):

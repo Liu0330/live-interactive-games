@@ -186,6 +186,8 @@ class GameManager:
     def _on_event(self, event: ChatEvent) -> None:
         with self._lock:
             self._push_feed(event)
+            if event.event_type == "chat" and self._take_suggestion(event):
+                return
             if (
                 event.event_type == "chat"
                 and self._count_gap_chat()
@@ -265,6 +267,11 @@ class GameManager:
         public["intermission"] = intermission
         return public
 
+    def _take_suggestion(self, event: ChatEvent) -> bool:
+        from app.banks import capture_suggestion
+
+        return capture_suggestion(event.content, event.nickname, event.user_id, self.active_id) is not None
+
     def _hold_chat(self, event: ChatEvent) -> None:
         if not (event.content or "").strip():
             return
@@ -276,6 +283,8 @@ class GameManager:
         self.held_chat.clear()
         notes: list[str] = []
         for event in queued:
+            if self._take_suggestion(event):
+                continue
             if self.game.status != "playing":
                 self.held_chat.append(event)
                 continue

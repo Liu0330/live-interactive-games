@@ -10,8 +10,7 @@ from pydantic import BaseModel, Field
 from app import db
 from app.config import CHAT_MODELS, api_key, load_config, public_config, save_config
 from app.games.manager import GAME_LABELS, manager
-from app.games.quiz import load_questions, save_questions
-from app.games.wordbank import add_words, load_words, remove_word, sanitize_generated, save_words
+from app.games.quiz import load_questions
 from app.engagement import sanitize_gift_tiers, sanitize_likes, sanitize_streak
 from app.ingest.douyin import douyin_ingest, extract_room_token
 from app.ingest.mock import mock_ingest
@@ -108,6 +107,42 @@ class EmojiGenerateBody(BaseModel):
 
 class EmojiDeleteBody(BaseModel):
     puzzle_id: str = ""
+
+
+class BankTextBody(BaseModel):
+    kind: str = "word"
+    text: str = ""
+    category: str = ""
+
+
+class BankGenerateBody(BaseModel):
+    kind: str = "word"
+    category: str = ""
+    theme: str = ""
+    count: int = 8
+    auto_add: bool = False
+
+
+class BankSaveBody(BaseModel):
+    kind: str = "word"
+    items: list[dict] = Field(default_factory=list)
+
+
+class BankUpdateBody(BaseModel):
+    item_id: str = ""
+    category: str = ""
+    label: str = ""
+    extra: str = ""
+    text: str = ""
+
+
+class BankDeleteBody(BaseModel):
+    item_id: str = ""
+
+
+class BankReviewBody(BaseModel):
+    suggestion_id: int = 0
+    action: str = "approve"
 
 
 def _html(name: str) -> HTMLResponse:
@@ -214,7 +249,9 @@ def api_config() -> dict:
     data = public_config()
     data["ingest"] = douyin_ingest.status().as_dict()
     data["games"] = GAME_LABELS
-    data["word_count"] = len(load_words())
+    from app.banks import playable_words
+
+    data["word_count"] = len(playable_words())
     data["question_count"] = len(load_questions())
     data["chat_models"] = CHAT_MODELS
     return data
@@ -346,38 +383,152 @@ def api_test_llm() -> dict:
 
 @app.post("/api/generate")
 def api_generate(body: GenerateBody) -> dict:
-    from app.llm import ChatError, generate_questions, generate_words
+    from app.banks import draft, save_drafts
+    from app.llm import ChatError
     from app.minimax import MinimaxError
-    from app.siliconflow import SiliconFlowError
 
+    kind = "question" if body.kind == "questions" else "word"
     try:
-        if body.kind == "questions":
-            items = generate_questions(body.count, body.theme)
-            bank = save_questions(items, overwrite=body.overwrite)
-            return {"ok": True, "count": len(bank), "added": len(items)}
-        words = sanitize_generated(generate_words(body.count, body.theme))
-        bank = add_words(words, overwrite=body.overwrite)
-        return {"ok": True, "count": len(bank), "added": len(words), "words": words}
-    except (SiliconFlowError, ChatError, MinimaxError) as exc:
+        rows = draft(kind, body.theme, body.theme, body.count)
+        saved = save_drafts(kind, rows)
+    except (ChatError, MinimaxError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "count": len(saved["added"]), "added": len(saved["added"]), "words": [item.get("word") or item.get("question") for item in saved["added"]]}
 
 
 @app.get("/api/words")
 def api_words() -> dict:
-    words = load_words()
+    from app.banks import playable_words
+
+    words = playable_words()
     return {"words": words, "count": len(words)}
 
 
 @app.post("/api/words")
 def api_set_words(body: WordsBody) -> dict:
-    words = save_words(body.words) if body.overwrite else add_words(body.words)
+    from app.banks import add_text, playable_words
+
+    if body.overwrite:
+        raise HTTPException(400, "为避免清掉已有词库，请逐条删除，不要整库覆盖")
+    add_text("word", "\n".join(body.words), source="manual")
+    words = playable_words()
     return {"ok": True, "count": len(words), "words": words}
 
 
 @app.post("/api/words/delete")
 def api_del_word(body: WordBody) -> dict:
-    words = remove_word(body.word.strip())
+    from app.banks import playable_words, remove_item
+
+    word = body.word.strip()
+    remove_item(f"file:word:{word}")
+    words = playable_words()
     return {"ok": True, "count": len(words), "words": words}
+
+
+@app.get("/api/bank")
+def api_bank(kind: str = "word", q: str = "", category: str = "") -> dict:
+    from app.banks import catalog
+
+    try:
+        return catalog(kind, q, category)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/bank/items")
+def api_bank_items(body: BankTextBody) -> dict:
+    from app.banks import add_text
+
+    try:
+        result = add_text(body.kind, body.text, body.category, source="manual")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, **result}
+
+
+@app.post("/api/bank/generate")
+def api_bank_generate(body: BankGenerateBody) -> dict:
+    from app.banks import draft, save_drafts
+    from app.llm import ChatError
+    from app.minimax import MinimaxError
+
+    try:
+        rows = draft(body.kind, body.category, body.theme, body.count)
+        saved = save_drafts(body.kind, rows) if body.auto_add else {"added": [], "skipped": [], "rejected": []}
+    except (ChatError, MinimaxError, ValueError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "drafts": rows, "added": saved["added"]}
+
+
+@app.post("/api/bank/save")
+def api_bank_save(body: BankSaveBody) -> dict:
+    from app.banks import save_drafts
+
+    try:
+        result = save_drafts(body.kind, body.items, source="ai")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, **result}
+
+
+@app.post("/api/bank/update")
+def api_bank_update(body: BankUpdateBody) -> dict:
+    from app.banks import update_item
+
+    try:
+        item = update_item(body.item_id, body.category, body.label, body.extra, body.text)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "item": item}
+
+
+@app.post("/api/bank/delete")
+def api_bank_delete(body: BankDeleteBody) -> dict:
+    from app.banks import remove_item
+
+    remove_item(body.item_id)
+    return {"ok": True}
+
+
+@app.post("/api/bank/import")
+def api_bank_import(body: BankTextBody) -> dict:
+    from app.banks import add_text
+
+    try:
+        result = add_text(body.kind, body.text, body.category, source="import")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, **result}
+
+
+@app.get("/api/bank/export")
+def api_bank_export(kind: str = "word", fmt: str = "txt"):
+    from fastapi.responses import Response
+
+    from app.banks import export_text
+
+    try:
+        text, filename, media = export_text(kind, "csv" if fmt == "csv" else "txt")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return Response(content=text, media_type=media, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/api/bank/suggestions")
+def api_bank_suggestions() -> dict:
+    from app.banks import list_suggestions
+
+    return {"suggestions": list_suggestions()}
+
+
+@app.post("/api/bank/suggestions/review")
+def api_bank_review(body: BankReviewBody) -> dict:
+    from app.banks import review_suggestion
+
+    try:
+        return review_suggestion(body.suggestion_id, body.action)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/api/emoji/puzzles")

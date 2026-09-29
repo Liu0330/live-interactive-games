@@ -42,6 +42,7 @@ class SemanticGame(BaseGame):
         self.max_score = 0.0
         self.embed_fn = None
         self.prepared = ""
+        self.prepared_gen = -1
 
     def _params(self) -> dict:
         return load_config().get("semantic", {})
@@ -50,15 +51,19 @@ class SemanticGame(BaseGame):
         params = self._params()
         self.round_no += 1
         length = int(params.get("answer_length") or 0)
+        from app.banks import category_of, generation
+
+        gen = generation("word")
         if (specified or "").strip():
             self.secret = pick_word(specified, length)
-        elif self.prepared:
+        elif self.prepared and self.prepared_gen == gen:
             self.secret = self.prepared
         else:
             self.secret = pick_word("", length)
         upcoming = pick_word("", length)
         self.prepared = upcoming if upcoming and upcoming != self.secret else ""
-        self.category = classify_word(self.secret)
+        self.prepared_gen = generation("word")
+        self.category = category_of("word", self.secret) or classify_word(self.secret)
         self.guesses = []
         self.hints = []
         self.hint_pool = _hint_candidates(self.secret)
