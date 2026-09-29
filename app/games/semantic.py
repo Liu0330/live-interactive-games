@@ -41,6 +41,7 @@ class SemanticGame(BaseGame):
         self.winner_word = ""
         self.max_score = 0.0
         self.embed_fn = None
+        self.prepared = ""
 
     def _params(self) -> dict:
         return load_config().get("semantic", {})
@@ -48,7 +49,15 @@ class SemanticGame(BaseGame):
     def start_round(self, specified: str = "") -> list[str]:
         params = self._params()
         self.round_no += 1
-        self.secret = pick_word(specified, int(params.get("answer_length") or 0))
+        length = int(params.get("answer_length") or 0)
+        if (specified or "").strip():
+            self.secret = pick_word(specified, length)
+        elif self.prepared:
+            self.secret = self.prepared
+        else:
+            self.secret = pick_word("", length)
+        upcoming = pick_word("", length)
+        self.prepared = upcoming if upcoming and upcoming != self.secret else ""
         self.category = classify_word(self.secret)
         self.guesses = []
         self.hints = []
@@ -114,7 +123,69 @@ class SemanticGame(BaseGame):
                 return blend_score(local, float(self.embed_fn(word, secret)))
             except Exception:
                 return local
-        return local
+        from app.config import llm_ready, load_config
+        from app.related_cache import combine_scores, lookup_score, schedule_refine
+
+        if not llm_ready():
+            return local
+        related = lookup_score(secret, word)
+        threshold = float(self._params().get("hit_threshold") or 80)
+        allow = bool(load_config().get("llm_related_can_win"))
+        if related is None:
+            schedule_refine(secret, word)
+            return local
+        return combine_scores(local, related, hit_threshold=threshold, allow_related_win=allow)
+
+    def absorb_related(self, mapping: dict[str, float]) -> None:
+        secret = normalize_word(self.secret)
+        added: list[str] = []
+        ranked = sorted(mapping.items(), key=lambda item: -float(item[1]))
+        for raw, score in ranked:
+            word = normalize_word(raw)
+            if not word or word == secret or float(score) < 55:
+                continue
+            if word in self.hints or word in added:
+                continue
+            added.append(word)
+        if added:
+            rest = [word for word in self.hint_pool if word not in added and word != secret]
+            self.hint_pool = added + rest
+        if not self.embed_fn:
+            self._rescore_with_cache()
+
+    def _rescore_with_cache(self) -> None:
+        from app.config import load_config
+        from app.related_cache import combine_scores, get_related
+
+        mapping = get_related(self.secret)
+        if not mapping or not self.guesses:
+            return
+        threshold = float(self._params().get("hit_threshold") or 80)
+        allow = bool(load_config().get("llm_related_can_win"))
+        secret = normalize_word(self.secret)
+        winner = None
+        for row in self.guesses:
+            word = normalize_word(str(row.get("word") or ""))
+            if not word or word == secret:
+                continue
+            local = local_similarity(word, secret)
+            row["score"] = combine_scores(
+                local,
+                mapping.get(word),
+                hit_threshold=threshold,
+                allow_related_win=allow,
+            )
+            if (
+                allow
+                and self.status == "playing"
+                and not self.winner
+                and float(row["score"]) + 1e-6 >= threshold
+                and (winner is None or float(row["score"]) > float(winner["score"]))
+            ):
+                winner = row
+        self.max_score = max(float(row["score"]) for row in self.guesses)
+        if winner is not None:
+            self._win(str(winner.get("nickname") or ""), str(winner.get("user_id") or ""), str(winner["word"]))
 
     def _record_guess(self, nickname: str, user_id: str, word: str, score: float, via: str = "chat") -> dict:
         self.seq += 1
@@ -197,6 +268,9 @@ class SemanticGame(BaseGame):
         self.max_score = 0.0
         self.winner = ""
         self.winner_word = ""
+        from app.related_cache import schedule_prefetch
+
+        schedule_prefetch(self.secret)
         return "已刷新本轮词语"
 
     def inject_random_words(self, nickname: str, user_id: str, count: int) -> int:

@@ -138,10 +138,27 @@
       </section>
 
       <section class="card">
-        <h2>AI 生成词库 · 硅基流动</h2>
+        <h2>对话模型</h2>
+        <p class="hint">OpenAI 兼容的对话接口。配好后用来扩词库、出题，并在回合开始时后台预取语义相关词。这个接口没有向量和语音，播报仍走浏览器语音。</p>
+        <label class="field">接口地址</label>
+        <input id="llmBase" placeholder="https://codingplan.alayanew.com/v1">
         <label class="field">API Key</label>
-        <input id="apiKey" type="password" placeholder="sk- 开头，仅保存在本机 data/config.json">
+        <input id="llmKey" type="password" placeholder="仅保存在本机，留空则不改已保存的密钥" autocomplete="off">
         <label class="field">对话模型</label>
+        <input id="llmModel" placeholder="glm-5.2">
+        <label class="field"><input id="llmCanWin" type="checkbox" style="width:auto"> 相关词可直接猜中</label>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn ghost" id="saveLlm">保存对话接口</button>
+          <button class="btn ghost" id="testLlm">测试对话</button>
+        </div>
+        <p class="hint">单次请求大约十几秒，只在后台预取。弹幕计分立刻查缓存，失败或超时退回本地拼音+字面。默认相关词分数到不了猜中线。</p>
+      </section>
+
+      <section class="card">
+        <h2>硅基流动 · 向量与语音（可选）</h2>
+        <label class="field">API Key</label>
+        <input id="apiKey" type="password" placeholder="sk- 开头，仅保存在本机 data/config.json" autocomplete="off">
+        <label class="field">对话模型（未配上方接口时，扩词库走这里）</label>
         <select id="chatModel"></select>
         <label class="field">生成数量</label>
         <input id="genCount" type="number" value="50" min="5" max="80">
@@ -154,7 +171,7 @@
           <button class="btn" id="genWords">AI 生成并入库</button>
           <button class="btn ghost" id="genQuiz">生成题目</button>
         </div>
-        <p class="hint" id="aiHint">未配置密钥时走「本地拼音+字面」；有密钥后为「硅基流动向量」，并与谐音分取高。</p>
+        <p class="hint" id="aiHint">有硅基流动密钥时，语义计分用向量，语音用 CosyVoice。只配上方对话接口时，计分用缓存相关词，语音用浏览器朗读。</p>
       </section>
 
       <section class="card">

@@ -60,6 +60,17 @@ def init_db() -> None:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS related_cache (
+                    secret TEXT NOT NULL,
+                    word TEXT NOT NULL,
+                    score REAL NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    PRIMARY KEY (secret, word)
+                )
+                """
+            )
             conn.commit()
         finally:
             conn.close()

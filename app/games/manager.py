@@ -38,6 +38,9 @@ class GameManager:
         self.last_announce = ""
         self.announce_seq = 0
         self.engagement = get_engagement()
+        from app.related_cache import set_listener
+
+        set_listener(self._on_related)
         bus.subscribe(self._on_event)
 
     @property
@@ -63,6 +66,8 @@ class GameManager:
                 else:
                     self.game.embed_fn = None
             notes = self.game.start_round(specified)
+            if self.active_id == "semantic":
+                self._arm_semantic_llm()
             notes.extend(self.engagement.apply_pending(self.game))
             self._note_announce(notes)
             return notes
@@ -80,6 +85,34 @@ class GameManager:
                 notes.extend(self.game.maybe_hint())
             self._note_announce(notes)
             return notes
+
+    def _arm_semantic_llm(self) -> None:
+        from app.config import llm_ready
+        from app.related_cache import get_related, schedule_prefetch
+
+        if not llm_ready():
+            return
+        game = self.game
+        cached = get_related(game.secret)
+        if cached:
+            game.absorb_related(cached)
+        else:
+            schedule_prefetch(game.secret)
+        prepared = getattr(game, "prepared", "")
+        if prepared:
+            schedule_prefetch(prepared)
+
+    def _on_related(self, secret: str, mapping: dict[str, float]) -> None:
+        from app.games.similarity import normalize_word
+
+        with self._lock:
+            game = self.games.get("semantic")
+            if game is None or normalize_word(game.secret) != normalize_word(secret):
+                return
+            before = game.status
+            game.absorb_related(mapping)
+            if game.status != before and game.announcement:
+                self._note_announce(["announce", "win"])
 
     def _on_event(self, event: ChatEvent) -> None:
         with self._lock:

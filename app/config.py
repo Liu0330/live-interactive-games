@@ -10,6 +10,11 @@ from app.paths import CONFIG_PATH, ensure_user_dirs
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "siliconflow_api_key": "",
+    "llm_base_url": "https://codingplan.alayanew.com/v1",
+    "llm_api_key": "",
+    "llm_model": "glm-5.2",
+    "llm_related_can_win": False,
+    "llm_related_count": 48,
     "chat_model": "deepseek-ai/DeepSeek-V3",
     "embed_model": "BAAI/bge-m3",
     "tts_enabled": True,
@@ -134,6 +139,15 @@ def load_config() -> dict[str, Any]:
         env_room = os.environ.get("DOUYIN_ROOM_ID", "").strip()
         if env_room:
             data["douyin_room_id"] = env_room
+        env_llm_base = os.environ.get("LLM_BASE_URL", "").strip()
+        if env_llm_base:
+            data["llm_base_url"] = env_llm_base
+        env_llm_key = os.environ.get("LLM_API_KEY", "").strip()
+        if env_llm_key:
+            data["llm_api_key"] = env_llm_key
+        env_llm_model = os.environ.get("LLM_MODEL", "").strip()
+        if env_llm_model:
+            data["llm_model"] = env_llm_model
         _cache = data
         return deepcopy(data)
 
@@ -154,18 +168,46 @@ def save_config(partial: dict[str, Any]) -> dict[str, Any]:
     return deepcopy(merged)
 
 
+def llm_settings(cfg: dict[str, Any] | None = None) -> tuple[str, str, str]:
+    data = cfg or load_config()
+    base = str(data.get("llm_base_url") or "").strip().rstrip("/")
+    key = str(data.get("llm_api_key") or "").strip()
+    model = str(data.get("llm_model") or "").strip() or "glm-5.2"
+    return base, key, model
+
+
+def llm_ready(cfg: dict[str, Any] | None = None) -> bool:
+    base, key, _model = llm_settings(cfg)
+    return bool(base and key)
+
+
 def scoring_info(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     data = cfg or load_config()
     has_key = bool((data.get("siliconflow_api_key") or "").strip())
+    has_llm = llm_ready(data)
     if has_key:
         return {
             "has_api_key": True,
+            "has_llm": has_llm,
             "scoring_mode": "siliconflow_embed",
             "scoring_mode_label": "硅基流动向量",
             "scoring_mode_detail": "向量相似度与本地拼音/字面取较高值，谐音不会丢",
         }
+    if has_llm:
+        if data.get("llm_related_can_win"):
+            detail = "后台预取相关词并缓存，弹幕即时计分。已允许相关词直接达到猜中阈值；超时或失败则只用本地拼音+字面。"
+        else:
+            detail = "后台预取相关词并缓存，弹幕即时计分。相关词分数低于猜中阈值，同义词不会单靠模型分获胜；超时或失败则只用本地拼音+字面。"
+        return {
+            "has_api_key": False,
+            "has_llm": True,
+            "scoring_mode": "llm_related",
+            "scoring_mode_label": "大模型相关词",
+            "scoring_mode_detail": detail,
+        }
     return {
         "has_api_key": False,
+        "has_llm": False,
         "scoring_mode": "local_pinyin",
         "scoring_mode_label": "本地拼音+字面",
         "scoring_mode_detail": "未配置 API Key，谐音、相关词表与字形离线计分",
@@ -175,9 +217,12 @@ def scoring_info(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
 def public_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     data = deepcopy(cfg or load_config())
     key = data.get("siliconflow_api_key") or ""
+    llm_key = data.get("llm_api_key") or ""
     data["has_api_key"] = bool(key)
     data["siliconflow_api_key_masked"] = _mask_key(key)
+    data["llm_api_key_masked"] = _mask_key(llm_key)
     data.pop("siliconflow_api_key", None)
+    data.pop("llm_api_key", None)
     data["chat_models"] = CHAT_MODELS
     data.update(scoring_info(cfg or load_config()))
     return data

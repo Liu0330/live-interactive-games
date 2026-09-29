@@ -31,6 +31,13 @@ class KeyBody(BaseModel):
     chat_model: str = ""
 
 
+class LlmBody(BaseModel):
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_model: str = ""
+    llm_related_can_win: bool = False
+
+
 class GenerateBody(BaseModel):
     count: int = 50
     theme: str = ""
@@ -198,6 +205,10 @@ def api_config() -> dict:
 def api_save_config(body: ConfigBody) -> dict:
     allowed = {
         "chat_model",
+        "llm_base_url",
+        "llm_model",
+        "llm_related_can_win",
+        "llm_related_count",
         "embed_model",
         "tts_enabled",
         "tts_model",
@@ -249,9 +260,36 @@ def api_test_key() -> dict:
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.post("/api/llm")
+def api_save_llm(body: LlmBody) -> dict:
+    patch: dict = {
+        "llm_base_url": body.llm_base_url.strip(),
+        "llm_model": body.llm_model.strip() or "glm-5.2",
+        "llm_related_can_win": bool(body.llm_related_can_win),
+    }
+    if body.llm_api_key.strip():
+        patch["llm_api_key"] = body.llm_api_key.strip()
+    save_config(patch)
+    return {"ok": True, "config": public_config()}
+
+
+@app.post("/api/llm/test")
+def api_test_llm() -> dict:
+    from app.config import llm_ready
+    from app.llm import ChatError, test_connection
+
+    if not llm_ready():
+        raise HTTPException(400, "请先保存对话接口地址和密钥")
+    try:
+        return test_connection()
+    except ChatError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.post("/api/generate")
 def api_generate(body: GenerateBody) -> dict:
-    from app.siliconflow import SiliconFlowError, generate_questions, generate_words
+    from app.llm import ChatError, generate_questions, generate_words
+    from app.siliconflow import SiliconFlowError
 
     try:
         if body.kind == "questions":
@@ -261,7 +299,7 @@ def api_generate(body: GenerateBody) -> dict:
         words = sanitize_generated(generate_words(body.count, body.theme))
         bank = add_words(words, overwrite=body.overwrite)
         return {"ok": True, "count": len(bank), "added": len(words), "words": words}
-    except SiliconFlowError as exc:
+    except (SiliconFlowError, ChatError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
 

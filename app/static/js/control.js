@@ -22,6 +22,11 @@ function fillConfig(cfg) {
   $("chatModel").innerHTML = (cfg.chat_models || []).map((m) => `<option>${m}</option>`).join("");
   $("chatModel").value = cfg.chat_model;
   $("apiKey").placeholder = cfg.siliconflow_api_key_masked || "尚未保存密钥";
+  $("llmBase").value = cfg.llm_base_url || "";
+  $("llmModel").value = cfg.llm_model || "glm-5.2";
+  $("llmKey").value = "";
+  $("llmKey").placeholder = cfg.llm_api_key_masked || "尚未保存密钥";
+  $("llmCanWin").checked = !!cfg.llm_related_can_win;
   $("perSub").value = cfg.points_per_sublevel || 180;
   $("rankNames").value = (cfg.rank_names || []).join("\n");
   $("gamePicker").value = cfg.active_game || "semantic";
@@ -103,7 +108,7 @@ function renderScoring(info) {
   const el = $("scoringMode");
   if (!el) return;
   const label = info.scoring_mode_label || "本地拼音+字面";
-  const missing = info.has_api_key ? "" : "（未配置 API Key）";
+  const missing = (info.has_api_key || info.has_llm) ? "" : "（未配置 API Key）";
   const detail = info.scoring_mode_detail ? ` · ${info.scoring_mode_detail}` : "";
   el.textContent = `计分方式：${label}${missing}${detail}`;
 }
@@ -219,6 +224,25 @@ $("connectRoom").onclick = async () => {
 $("disconnectRoom").onclick = async () => {
   const data = await api("/api/douyin/disconnect");
   renderIngest(data.ingest);
+};
+$("saveLlm").onclick = async () => {
+  try {
+    const data = await api("/api/llm", {
+      llm_base_url: $("llmBase").value,
+      llm_api_key: $("llmKey").value,
+      llm_model: $("llmModel").value,
+      llm_related_can_win: $("llmCanWin").checked,
+    });
+    $("llmKey").value = "";
+    fillConfig(data.config);
+    toast("对话接口已保存");
+  } catch (e) { toast(e.message); }
+};
+$("testLlm").onclick = async () => {
+  try {
+    const data = await api("/api/llm/test");
+    toast("对话成功：" + (data.reply || data.model));
+  } catch (e) { toast(e.message); }
 };
 $("saveKey").onclick = async () => {
   await api("/api/key", { siliconflow_api_key: $("apiKey").value, chat_model: $("chatModel").value });
