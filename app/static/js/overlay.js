@@ -312,13 +312,14 @@ function renderFly(state) {
   if (!layer) return;
   const cfg = state.danmaku || {};
   const enabled = cfg.enabled !== false && cfg.enabled !== 0 && cfg.enabled !== "0" && cfg.enabled !== "false" && cfg.enabled !== "False";
-  const bandTop = Number(cfg.band_top ?? 18);
   const bandHeight = Number(cfg.band_height ?? 18);
-  layer.style.top = `${bandTop}%`;
-  layer.style.height = `${bandHeight}%`;
+  const bandPx = Math.round(1920 * (bandHeight / 100));
+  layer.style.top = "0";
+  layer.style.height = `${bandPx}px`;
   layer.style.opacity = String(cfg.opacity ?? 0.82);
   if (!enabled) {
     layer.innerHTML = "";
+    layer.style.height = "0";
     flyQueue = [];
     return;
   }
@@ -326,7 +327,6 @@ function renderFly(state) {
   const speed = Math.max(4, Math.min(20, Number(cfg.speed) || 8));
   const font = Math.max(20, Math.min(72, Number(cfg.font_size) || 32));
   const perSecond = Math.max(1, Math.min(20, Number(cfg.per_second) || 6));
-  const bandPx = 1920 * (bandHeight / 100);
   const lanePx = bandPx / lanes;
   const nowMs = performance.now();
   if (nowMs - flyWindow >= 1000) {
