@@ -147,6 +147,8 @@ def test_tts_decodes_hex_mp3(monkeypatch):
     assert seen["auth"] == "Bearer sk-replace-me"
     assert seen["body"]["model"] == "speech-02-turbo"
     assert seen["body"]["voice_setting"]["voice_id"] == "male-qn-qingse"
+    assert seen["body"]["voice_setting"]["speed"] == 0.92
+    assert seen["body"]["voice_setting"]["emotion"] == "happy"
     assert seen["body"]["audio_setting"]["format"] == "mp3"
 
 

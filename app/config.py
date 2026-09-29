@@ -25,7 +25,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "minimax_chat_model": "MiniMax-M3",
     "minimax_embed_model": "embo-01",
     "minimax_tts_model": "speech-02-turbo",
-    "minimax_tts_voice": "male-qn-qingse",
+    "minimax_tts_voice": "presenter_female",
+    "minimax_tts_speed": 0.92,
+    "minimax_tts_emotion": "happy",
     "llm_base_url": "https://codingplan.alayanew.com/v1",
     "llm_api_key": "",
     "llm_model": "glm-5.2",
@@ -198,10 +200,14 @@ def load_config() -> dict[str, Any]:
             ("MINIMAX_EMBED_MODEL", "minimax_embed_model"),
             ("MINIMAX_TTS_MODEL", "minimax_tts_model"),
             ("MINIMAX_TTS_VOICE", "minimax_tts_voice"),
+            ("MINIMAX_TTS_EMOTION", "minimax_tts_emotion"),
         ):
             env_value = os.environ.get(env_name, "").strip()
             if env_value:
                 data[key] = env_value
+        speed_env = os.environ.get("MINIMAX_TTS_SPEED", "").strip()
+        if speed_env:
+            data["minimax_tts_speed"] = speed_env
         _cache = data
         return deepcopy(data)
 
@@ -235,16 +241,32 @@ def llm_ready(cfg: dict[str, Any] | None = None) -> bool:
     return bool(base and key)
 
 
-def minimax_settings(cfg: dict[str, Any] | None = None) -> dict[str, str]:
+_TTS_EMOTIONS = {"happy", "sad", "angry", "fearful", "disgusted", "surprised", "calm"}
+
+
+def clamp_tts_speed(raw: Any) -> float:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        value = 0.92
+    return round(max(0.5, min(2.0, value)), 2)
+
+
+def minimax_settings(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     data = cfg or load_config()
     base = str(data.get("minimax_base_url") or "https://api.minimaxi.com").strip().rstrip("/")
+    emotion = str(data.get("minimax_tts_emotion") or "happy").strip().lower() or "happy"
+    if emotion not in _TTS_EMOTIONS:
+        emotion = "happy"
     return {
         "base_url": base or "https://api.minimaxi.com",
         "api_key": str(data.get("minimax_api_key") or "").strip(),
         "chat_model": str(data.get("minimax_chat_model") or "").strip() or "MiniMax-M3",
         "embed_model": str(data.get("minimax_embed_model") or "").strip() or "embo-01",
         "tts_model": str(data.get("minimax_tts_model") or "").strip() or "speech-02-turbo",
-        "tts_voice": str(data.get("minimax_tts_voice") or "").strip() or "male-qn-qingse",
+        "tts_voice": str(data.get("minimax_tts_voice") or "").strip() or "presenter_female",
+        "tts_speed": clamp_tts_speed(data.get("minimax_tts_speed", 0.92)),
+        "tts_emotion": emotion,
     }
 
 

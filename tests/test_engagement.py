@@ -65,6 +65,25 @@ def test_match_tier_name_beats_diamond_value():
     assert match_tier("神秘礼物", 0, tiers)["id"] == "small"
 
 
+def test_thanks_and_welcome_stay_short_and_vary():
+    from app.engagement import spoken_gift, spoken_welcome
+
+    names = ["甲", "乙", "丙", "小明", "阿花"]
+    gifts = [spoken_gift(name, "小心心") for name in names]
+    assert len(set(gifts)) >= 2
+    for name, line in zip(names, gifts):
+        assert name in line
+        assert "小心心" in line
+        assert "送出的" not in line
+        assert len(line) <= 24
+    welcomes = [spoken_welcome(name) for name in names]
+    assert len(set(welcomes)) >= 2
+    for name, line in zip(names, welcomes):
+        assert name in line
+        assert "进入直播间" not in line
+        assert len(line) <= 16
+
+
 def test_small_gift_unlocks_hint_and_thanks(eng):
     game = SemanticGame()
     game.start_round("淘气")
@@ -72,7 +91,8 @@ def test_small_gift_unlocks_hint_and_thanks(eng):
     before = game.ends_at
     notes = eng.on_gift(game, _gift("小心心", value=999))
     assert "调皮" in game.hints
-    assert "感谢甲" in game.announcement
+    assert "甲" in game.announcement
+    assert "感谢" in game.announcement or "谢谢" in game.announcement
     assert "调皮" in game.announcement
     assert game.ends_at == before
     effect = eng.effects[-1]
@@ -330,7 +350,8 @@ def test_lottery_skip_tier_draws_now(eng, monkeypatch):
     eng.on_gift(game, _gift("鲜花", nickname="乙"))
     assert game.status == "reveal"
     assert game.winner
-    assert "感谢乙" in game.announcement
+    assert "乙" in game.announcement
+    assert "感谢" in game.announcement or "谢谢" in game.announcement
 
 
 def test_console_mock_endpoints(eng):

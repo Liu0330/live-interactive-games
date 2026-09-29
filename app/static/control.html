@@ -180,17 +180,23 @@
         <input id="mmChat" placeholder="MiniMax-M3">
         <div class="row">
           <input id="mmEmbed" placeholder="embo-01">
-          <input id="mmTts" placeholder="speech-02-turbo">
+          <input id="mmTts" list="mmTtsModels" placeholder="speech-02-turbo">
         </div>
+        <datalist id="mmTtsModels">
+          <option value="speech-02-turbo">speech-02-turbo，更快</option>
+          <option value="speech-02-hd">speech-02-hd，更自然</option>
+        </datalist>
         <label class="field">语音音色</label>
-        <input id="mmVoice" list="mmVoices" placeholder="male-qn-qingse">
+        <input id="mmVoice" list="mmVoices" placeholder="presenter_female">
         <datalist id="mmVoices"></datalist>
+        <label class="field">语速（0.5–2，略慢更口语）</label>
+        <input id="mmTtsSpeed" type="number" min="0.5" max="2" step="0.01" value="0.92">
         <label class="field"><input id="mmCanWin" type="checkbox" style="width:auto"> 模型分可直接猜中</label>
         <div class="row btns" style="margin-top:10px">
           <button class="btn ghost" id="saveMinimax">保存 MiniMax</button>
           <button class="btn ghost" id="testMinimax">测试对话</button>
         </div>
-        <p class="hint">向量请求约数秒，在后台批量缓存。默认同义词到不了猜中线。语音失败时改用浏览器朗读。</p>
+        <p class="hint">向量请求约数秒，在后台批量缓存。默认同义词到不了猜中线。新安装默认女主持人，语速 0.92，语气偏高兴。语音模型可改成 speech-02-hd，更自然但稍慢。语音失败时改用浏览器朗读。</p>
       </section>
 
       <section class="card">

@@ -101,7 +101,8 @@ MINIMAX_BASE_URL=https://api.minimaxi.com
 MINIMAX_CHAT_MODEL=MiniMax-M3
 MINIMAX_EMBED_MODEL=embo-01
 MINIMAX_TTS_MODEL=speech-02-turbo
-MINIMAX_TTS_VOICE=male-qn-qingse
+MINIMAX_TTS_VOICE=presenter_female
+MINIMAX_TTS_SPEED=0.92
 ```
 
 只设 `MINIMAX_API_KEY` 也可以，其余会用上面的默认值。同一份配置写在本机 `data/config.json`（已在 `.gitignore` 里，不要提交），字段名是：
@@ -113,7 +114,9 @@ MINIMAX_TTS_VOICE=male-qn-qingse
   "minimax_chat_model": "MiniMax-M3",
   "minimax_embed_model": "embo-01",
   "minimax_tts_model": "speech-02-turbo",
-  "minimax_tts_voice": "male-qn-qingse"
+  "minimax_tts_voice": "presenter_female",
+  "minimax_tts_speed": 0.92,
+  "minimax_tts_emotion": "happy"
 }
 ```
 
@@ -125,7 +128,7 @@ MINIMAX_TTS_VOICE=male-qn-qingse
 2. 语义猜词用 `embo-01` 向量。谜底按 `type=db` 缓存，观众的词按 `type=query` 缓存，都写在本机 SQLite。弹幕进来只查缓存，**不会等网络**。缓存没有时先用本地拼音+字面，向量回来后再更新分数。
 3. 猜中分取本地分和向量分里的较高者。默认向量分封顶在猜中阈值之下，同义词不会单靠模型分获胜。勾选「模型分可直接猜中」后才允许过线。谐音如果本地分已经够高，仍按本地规则判。
 4. 向量超时、报错时继续用本地分。请求会合并成小批量，超时大约 8 秒。
-5. 礼物感谢和进场欢迎用 `speech-02-turbo`。音色在控制台改，默认 `male-qn-qingse`。语音失败就改用浏览器 `speechSynthesis`。
+5. 礼物感谢和进场欢迎默认用 `speech-02-turbo`，语速 `0.92`，情绪 `happy`，听起来更口语。新安装的音色默认是 `presenter_female`。控制台可以把语音模型改成 `speech-02-hd`，音质更好，生成稍慢。已经保存过的 `data/config.json` 不会被默认值盖掉，要换音色就在控制台改。语音失败就改用浏览器 `speechSynthesis`。
 6. 控制台「计分方式」显示「MiniMax 向量」，并写上当前语音来源。
 
 好几个密钥同时存在时，计分和语音都优先 MiniMax，然后是硅基流动，再然后是下面的通用对话接口，最后是本地拼音和浏览器语音。

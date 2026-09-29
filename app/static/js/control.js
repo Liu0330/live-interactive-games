@@ -31,7 +31,8 @@ function fillConfig(cfg) {
   $("mmChat").value = cfg.minimax_chat_model || "MiniMax-M3";
   $("mmEmbed").value = cfg.minimax_embed_model || "embo-01";
   $("mmTts").value = cfg.minimax_tts_model || "speech-02-turbo";
-  $("mmVoice").value = cfg.minimax_tts_voice || "male-qn-qingse";
+  $("mmVoice").value = cfg.minimax_tts_voice || "presenter_female";
+  $("mmTtsSpeed").value = cfg.minimax_tts_speed ?? 0.92;
   $("mmKey").value = "";
   $("mmKey").placeholder = cfg.minimax_api_key_masked || "尚未保存密钥";
   $("mmCanWin").checked = !!cfg.llm_related_can_win;
@@ -351,6 +352,7 @@ $("saveMinimax").onclick = async () => {
       minimax_embed_model: $("mmEmbed").value,
       minimax_tts_model: $("mmTts").value,
       minimax_tts_voice: $("mmVoice").value,
+      minimax_tts_speed: Number($("mmTtsSpeed").value || 0.92),
       llm_related_can_win: $("mmCanWin").checked,
     });
     $("mmKey").value = "";

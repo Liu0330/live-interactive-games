@@ -19,6 +19,38 @@ ACTION_LABELS = {
 }
 
 
+def _pick_line(options: tuple[str, ...], key: str) -> str:
+    if not options:
+        return ""
+    total = sum(ord(ch) for ch in key) or 0
+    return options[total % len(options)]
+
+
+def spoken_gift(nickname: str, gift_name: str) -> str:
+    nick = (nickname or "朋友").strip() or "朋友"
+    gift = (gift_name or "礼物").strip() or "礼物"
+    return _pick_line(
+        (
+            f"{nick}，感谢你的{gift}",
+            f"谢谢{nick}，{gift}收到啦",
+            f"{nick}的{gift}，太感谢了",
+        ),
+        nick + gift,
+    )
+
+
+def spoken_welcome(nickname: str) -> str:
+    nick = (nickname or "朋友").strip() or "朋友"
+    return _pick_line(
+        (
+            f"{nick}来啦",
+            f"欢迎{nick}",
+            f"{nick}，快进来玩",
+        ),
+        nick,
+    )
+
+
 def action_label(tier: dict | None) -> str:
     if not tier:
         return "感谢支持"
@@ -233,7 +265,7 @@ class Engagement:
         self.welcome = {
             "seq": self.welcome_seq,
             "nickname": event.nickname,
-            "text": f"欢迎 {event.nickname} 进入直播间",
+            "text": spoken_welcome(event.nickname),
         }
         return ["member", "announce"]
 
@@ -310,7 +342,7 @@ class Engagement:
         else:
             detail = self._apply_action(game, event, action, tier or {})
         gift_name = event.gift_name or "礼物"
-        speech = f"感谢{event.nickname}送出的{gift_name}"
+        speech = spoken_gift(event.nickname, gift_name)
         if detail:
             speech = f"{speech}，{detail}"
         if hasattr(game, "announcement"):

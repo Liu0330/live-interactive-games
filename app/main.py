@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import db
-from app.config import CHAT_MODELS, api_key, load_config, public_config, save_config
+from app.config import CHAT_MODELS, api_key, clamp_tts_speed, load_config, public_config, save_config
 from app.games.manager import GAME_LABELS, manager
 from app.games.quiz import load_questions
 from app.engagement import sanitize_gift_tiers, sanitize_likes, sanitize_streak
@@ -44,6 +44,7 @@ class MinimaxBody(BaseModel):
     minimax_embed_model: str = ""
     minimax_tts_model: str = ""
     minimax_tts_voice: str = ""
+    minimax_tts_speed: float = 0.92
     llm_related_can_win: bool = False
 
 
@@ -351,7 +352,8 @@ def api_save_minimax(body: MinimaxBody) -> dict:
         "minimax_chat_model": body.minimax_chat_model.strip() or "MiniMax-M3",
         "minimax_embed_model": body.minimax_embed_model.strip() or "embo-01",
         "minimax_tts_model": body.minimax_tts_model.strip() or "speech-02-turbo",
-        "minimax_tts_voice": body.minimax_tts_voice.strip() or "male-qn-qingse",
+        "minimax_tts_voice": body.minimax_tts_voice.strip() or "presenter_female",
+        "minimax_tts_speed": clamp_tts_speed(body.minimax_tts_speed),
         "llm_related_can_win": bool(body.llm_related_can_win),
     }
     if body.minimax_api_key.strip():

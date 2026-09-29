@@ -22,7 +22,7 @@ def strip_think(text: str) -> str:
     return _THINK.sub("", text or "").strip()
 
 
-def _settings() -> dict[str, str]:
+def _settings() -> dict:
     settings = minimax_settings()
     if not settings["api_key"]:
         raise MinimaxError("未配置 MiniMax API Key")
@@ -138,21 +138,38 @@ def embed_texts(texts: list[str], kind: str) -> list[list[float]] | None:
     return out
 
 
+_EMOTION_MODELS = {
+    "speech-02-hd",
+    "speech-02-turbo",
+    "speech-01-hd",
+    "speech-01-turbo",
+    "speech-2.6-hd",
+    "speech-2.6-turbo",
+    "speech-2.8-hd",
+    "speech-2.8-turbo",
+}
+
+
 def synthesize_speech(text: str) -> bytes:
     settings = _settings()
     spoken = (text or "").strip()
     if not spoken:
         raise MinimaxError("没有可播报的文字")
+    model = str(settings["tts_model"])
+    voice = {
+        "voice_id": settings["tts_voice"],
+        "speed": settings.get("tts_speed", 0.92),
+        "vol": 1,
+        "pitch": 0,
+    }
+    emotion = str(settings.get("tts_emotion") or "")
+    if emotion and model in _EMOTION_MODELS:
+        voice["emotion"] = emotion
     payload = {
-        "model": settings["tts_model"],
+        "model": model,
         "text": spoken[:500],
         "stream": False,
-        "voice_setting": {
-            "voice_id": settings["tts_voice"],
-            "speed": 1,
-            "vol": 1,
-            "pitch": 0,
-        },
+        "voice_setting": voice,
         "audio_setting": {"format": "mp3", "sample_rate": 32000},
     }
     url = f"{settings['base_url']}/v1/t2a_v2"
