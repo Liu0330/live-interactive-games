@@ -71,16 +71,70 @@
           <button class="btn" id="sendChat">发弹幕</button>
         </div>
         <div class="row" style="margin-top:10px">
-          <select id="giftName">
-            <option>小心心</option>
-            <option>大啤酒</option>
-            <option>鲜花</option>
-            <option>你最好看</option>
-            <option>点赞</option>
-          </select>
+          <select id="giftName"></select>
           <input id="giftCount" type="number" value="1" min="1">
           <button class="btn" id="sendGift">送礼</button>
         </div>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn" id="sendSmall">模拟小礼物</button>
+          <button class="btn" id="sendBig">模拟大礼物</button>
+          <button class="btn ghost" id="sendMember">模拟进场</button>
+        </div>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn" id="likeBurst">模拟点赞 +20</button>
+          <button class="btn" id="likeFill">模拟点赞灌满</button>
+        </div>
+        <p class="hint" id="likeProgress">点赞进度 0 / 100</p>
+      </section>
+
+      <section class="card">
+        <h2>礼物档位</h2>
+        <p class="hint">小礼物默认解锁提示，大礼物可加时、跳过或刷新当前词/题目。每个礼物都会在画面上出现感谢动画；有硅基流动密钥时用 CosyVoice 播报，否则用浏览器语音。</p>
+        <label class="field">小礼物名称（逗号或换行）</label>
+        <textarea id="smallNames" class="short"></textarea>
+        <label class="field">小礼物钻石上限（名称对不上时）</label>
+        <input id="smallMax" type="number" min="1" value="9">
+        <label class="field">小礼物效果</label>
+        <select id="smallAction">
+          <option value="hint">解锁提示</option>
+          <option value="add_time">加时</option>
+          <option value="refresh">刷新题目</option>
+          <option value="skip">跳过当前</option>
+          <option value="random_words">注入随机词</option>
+        </select>
+        <label class="field">大礼物名称</label>
+        <textarea id="bigNames" class="short"></textarea>
+        <label class="field">大礼物钻石下限</label>
+        <input id="bigMin" type="number" min="1" value="10">
+        <label class="field">大礼物效果</label>
+        <select id="bigAction">
+          <option value="add_time">加时</option>
+          <option value="skip">跳过当前</option>
+          <option value="refresh">刷新题目</option>
+          <option value="hint">解锁提示</option>
+          <option value="random_words">注入随机词</option>
+        </select>
+        <label class="field">大礼物加时秒数</label>
+        <input id="bigSeconds" type="number" min="5" value="30">
+        <button class="btn" id="saveGifts" style="margin-top:10px">保存礼物档位</button>
+      </section>
+
+      <section class="card">
+        <h2>点赞进度条</h2>
+        <p class="hint" id="bonusStatus">满赞后解锁提示，或开启限时多倍积分。</p>
+        <label class="field">目标赞数</label>
+        <input id="likeTarget" type="number" min="1" value="100">
+        <label class="field">满赞奖励</label>
+        <select id="likeReward">
+          <option value="hint">解锁提示</option>
+          <option value="bonus">限时多倍积分</option>
+        </select>
+        <label class="field">多倍持续秒数 / 倍数</label>
+        <div class="row">
+          <input id="bonusSeconds" type="number" min="5" value="45">
+          <input id="bonusMult" type="number" min="2" max="5" value="2">
+        </div>
+        <button class="btn" id="saveLikes" style="margin-top:10px">保存点赞设置</button>
       </section>
 
       <section class="card">
@@ -109,7 +163,12 @@
         <input id="perSub" type="number" value="180">
         <label class="field">段位名称（每行一个，每段 5 小级）</label>
         <textarea id="rankNames"></textarea>
-        <button class="btn" id="saveRanks" style="margin-top:10px">保存</button>
+        <label class="field">连击奖励：每多连对 1 次额外积分 / 上限</label>
+        <div class="row">
+          <input id="streakPer" type="number" min="0" value="15">
+          <input id="streakMax" type="number" min="0" value="60">
+        </div>
+        <button class="btn" id="saveRanks" style="margin-top:10px">保存段位与连击</button>
       </section>
 
       <section class="card">

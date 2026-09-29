@@ -15,6 +15,8 @@ class IngestStatus:
     last_error: str = ""
     chat_count: int = 0
     gift_count: int = 0
+    like_count: int = 0
+    member_count: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -27,6 +29,8 @@ class IngestStatus:
             "last_error": self.last_error,
             "chat_count": self.chat_count,
             "gift_count": self.gift_count,
+            "like_count": self.like_count,
+            "member_count": self.member_count,
             "extra": self.extra,
         }
 

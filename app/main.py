@@ -12,6 +12,7 @@ from app.config import CHAT_MODELS, api_key, load_config, public_config, save_co
 from app.games.manager import GAME_LABELS, manager
 from app.games.quiz import load_questions, save_questions
 from app.games.wordbank import add_words, load_words, remove_word, sanitize_generated, save_words
+from app.engagement import sanitize_gift_tiers, sanitize_likes, sanitize_streak
 from app.ingest.douyin import douyin_ingest, extract_room_token
 from app.ingest.mock import mock_ingest
 from app.paths import STATIC_DIR, ensure_user_dirs
@@ -54,6 +55,16 @@ class GiftBody(BaseModel):
     nickname: str = "测试观众"
     gift_name: str = "小心心"
     count: int = 1
+    gift_value: int = 0
+
+
+class LikeBody(BaseModel):
+    nickname: str = "测试观众"
+    count: int = 10
+
+
+class MemberBody(BaseModel):
+    nickname: str = "新观众"
 
 
 class RoomBody(BaseModel):
@@ -94,13 +105,19 @@ def _tick_loop() -> None:
         time.sleep(1)
         try:
             notes = manager.tick()
-            payload = manager.snapshot(host=True)
-            if "announce" in notes or manager.announce_seq != _last_announce_seq:
-                _last_announce_seq = manager.announce_seq
-                payload["tts"] = prepare_announcement(manager.last_announce)
+            payload = _with_tts(manager.snapshot(host=True), force="announce" in notes)
             _broadcast(payload)
         except Exception:
             continue
+
+
+def _with_tts(payload: dict, force: bool = False) -> dict:
+    global _last_announce_seq
+    if force or manager.announce_seq != _last_announce_seq:
+        _last_announce_seq = manager.announce_seq
+        if manager.last_announce:
+            payload["tts"] = prepare_announcement(manager.last_announce)
+    return payload
 
 
 def _broadcast(payload: dict | None = None) -> None:
@@ -193,9 +210,18 @@ def api_save_config(body: ConfigBody) -> dict:
         "bomb",
         "lottery",
         "gifts",
+        "gift_tiers",
+        "likes",
+        "streak",
         "active_game",
     }
     patch = {k: v for k, v in (body.payload or {}).items() if k in allowed}
+    if "gift_tiers" in patch:
+        patch["gift_tiers"] = sanitize_gift_tiers(patch["gift_tiers"])
+    if "likes" in patch:
+        patch["likes"] = sanitize_likes(patch["likes"])
+    if "streak" in patch:
+        patch["streak"] = sanitize_streak(patch["streak"])
     save_config(patch)
     return {"ok": True, "config": public_config()}
 
@@ -267,8 +293,7 @@ def api_switch(body: SwitchBody) -> dict:
 @app.post("/api/round/start")
 def api_start(body: ControlBody) -> dict:
     manager.start_round(body.specified)
-    payload = manager.snapshot(host=True)
-    payload["tts"] = prepare_announcement(manager.last_announce)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
     _broadcast(payload)
     return {"ok": True, "state": payload}
 
@@ -276,8 +301,7 @@ def api_start(body: ControlBody) -> dict:
 @app.post("/api/round/skip")
 def api_skip() -> dict:
     manager.skip()
-    payload = manager.snapshot(host=True)
-    payload["tts"] = prepare_announcement(manager.last_announce)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
     _broadcast(payload)
     return {"ok": True, "state": payload}
 
@@ -294,18 +318,31 @@ def api_mock_chat(body: ChatBody) -> dict:
     if not body.content.strip():
         raise HTTPException(400, "请填写猜词内容")
     mock_ingest.inject_chat(body.nickname, body.content)
-    payload = manager.snapshot(host=True)
-    if manager.announce_seq:
-        payload["tts"] = prepare_announcement(manager.last_announce)
+    payload = _with_tts(manager.snapshot(host=True))
     _broadcast(payload)
     return {"ok": True, "state": payload}
 
 
 @app.post("/api/mock/gift")
 def api_mock_gift(body: GiftBody) -> dict:
-    mock_ingest.inject_gift(body.nickname, body.gift_name, body.count)
+    mock_ingest.inject_gift(body.nickname, body.gift_name, body.count, body.gift_value)
+    payload = _with_tts(manager.snapshot(host=True), force=True)
+    _broadcast(payload)
+    return {"ok": True, "state": payload}
+
+
+@app.post("/api/mock/like")
+def api_mock_like(body: LikeBody) -> dict:
+    mock_ingest.inject_like(body.nickname, body.count)
+    payload = _with_tts(manager.snapshot(host=True))
+    _broadcast(payload)
+    return {"ok": True, "state": payload}
+
+
+@app.post("/api/mock/member")
+def api_mock_member(body: MemberBody) -> dict:
+    mock_ingest.inject_member(body.nickname)
     payload = manager.snapshot(host=True)
-    payload["tts"] = prepare_announcement(manager.last_announce)
     _broadcast(payload)
     return {"ok": True, "state": payload}
 

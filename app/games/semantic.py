@@ -6,8 +6,8 @@ from typing import Any
 
 from app.bus import ChatEvent
 from app.config import load_config
-from app.db import add_points
 from app.games.base import BaseGame
+from app.scoring import grant_points, grant_win, win_suffix
 from app.games.similarity import (
     blend_score,
     hint_neighbors,
@@ -133,6 +133,7 @@ class SemanticGame(BaseGame):
     def on_comment(self, event: ChatEvent) -> list[str]:
         if self.status != "playing":
             return []
+        self.last_award = None
         params = self._params()
         if not is_usable_guess(event.content, int(params.get("max_guess_chars") or 12)):
             return []
@@ -149,7 +150,12 @@ class SemanticGame(BaseGame):
             self._win(event.nickname, event.user_id, word)
             notes.extend(["win", "announce"])
         elif score >= 70:
-            add_points(event.user_id, event.nickname, int(params.get("near_points") or 8))
+            self.last_award = grant_points(
+                event.user_id,
+                event.nickname,
+                int(params.get("near_points") or 8),
+                reason="semantic_near",
+            )
             notes.append("points")
         return notes
 
@@ -157,13 +163,55 @@ class SemanticGame(BaseGame):
         params = self._params()
         leftover = self.remaining()
         pts = int(params.get("win_points") or 120) + leftover
-        add_points(user_id, nickname, pts)
+        award = grant_win(user_id, nickname, pts, reason="semantic")
+        self.last_award = award
         self.winner = nickname
         self.winner_word = word
         self.last_winner = nickname
         self.status = "reveal"
         self.reveal_until = time.time() + int(params.get("post_round_delay") or 8)
-        self.announcement = f"恭喜 {nickname} 猜中了，答案是 {self.secret}"
+        self.announcement = f"恭喜 {nickname} 猜中了，答案是 {self.secret}{win_suffix(award)}"
+
+    def unlock_hint(self, nickname: str = "") -> str:
+        if self.status != "playing":
+            return ""
+        if self._push_hint():
+            return self.hints[-1]
+        return ""
+
+    def refresh_prompt(self) -> str:
+        if self.status != "playing":
+            return ""
+        params = self._params()
+        previous = self.secret
+        nxt = previous
+        for _ in range(8):
+            nxt = pick_word("", int(params.get("answer_length") or 0))
+            if nxt != previous:
+                break
+        self.secret = nxt
+        self.category = classify_word(self.secret)
+        self.guesses = []
+        self.hints = []
+        self.hint_pool = _hint_candidates(self.secret)
+        self.max_score = 0.0
+        self.winner = ""
+        self.winner_word = ""
+        return "已刷新本轮词语"
+
+    def inject_random_words(self, nickname: str, user_id: str, count: int) -> int:
+        if self.status != "playing":
+            return 0
+        n = min(400, max(1, int(count or 1)))
+        secret = normalize_word(self.secret)
+        pool = [w for w in load_common_guesses() if normalize_word(w) != secret]
+        if not pool:
+            return 0
+        picked = random.sample(pool, k=min(n, len(pool)))
+        for word in picked:
+            score = local_similarity(word, self.secret)
+            self._record_guess(nickname, user_id, word, score, via="gift")
+        return len(picked)
 
     def on_gift(self, event: ChatEvent) -> list[str]:
         if self.status != "playing":
@@ -179,26 +227,31 @@ class SemanticGame(BaseGame):
                     self.announcement = f"{event.nickname} 点赞触发了一条提示"
                     notes.append("announce")
             return notes
-        if action == "extra_hint":
-            if self._push_hint():
+        if action in {"extra_hint", "hint"}:
+            hinted = self.unlock_hint(event.nickname)
+            if hinted:
                 notes.append("hint")
-                self.announcement = f"{event.nickname} 送出{event.gift_name}，解锁提示"
+                self.announcement = f"{event.nickname} 送出{event.gift_name}，解锁提示 {hinted}"
+                notes.append("announce")
+            return notes
+        if action == "add_time":
+            detail = self.add_time(count if count > 1 else 30)
+            if detail:
+                self.announcement = f"{event.nickname} 送出{event.gift_name}，{detail}"
+                notes.append("announce")
+            return notes
+        if action == "refresh":
+            detail = self.refresh_prompt()
+            if detail:
+                self.announcement = f"{event.nickname} 送出{event.gift_name}，{detail}"
                 notes.append("announce")
             return notes
         if action == "random_words":
-            n = max(1, int(count) * max(1, event.gift_count or 1))
-            n = min(n, 400)
-            secret = normalize_word(self.secret)
-            pool = [w for w in load_common_guesses() if normalize_word(w) != secret]
-            if not pool:
-                return notes
-            picked = random.sample(pool, k=min(n, len(pool)))
-            for word in picked:
-                score = local_similarity(word, self.secret)
-                self._record_guess(event.nickname, event.user_id, word, score, via="gift")
-            notes.append("guess")
-            self.announcement = f"{event.nickname} 送出{event.gift_name}，注入 {len(picked)} 个随机词"
-            notes.append("announce")
+            added = self.inject_random_words(event.nickname, event.user_id, int(count) * max(1, event.gift_count or 1))
+            if added:
+                notes.append("guess")
+                self.announcement = f"{event.nickname} 送出{event.gift_name}，注入 {added} 个随机词"
+                notes.append("announce")
         return notes
 
     def public_state(self) -> dict[str, Any]:

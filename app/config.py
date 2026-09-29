@@ -49,12 +49,43 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "gift_weight": True,
         "win_points": 50,
     },
+    "gift_tiers": [
+        {
+            "id": "small",
+            "label": "小礼物",
+            "names": ["小心心", "玫瑰", "大啤酒", "人气票"],
+            "min_value": 1,
+            "max_value": 9,
+            "action": "hint",
+            "seconds": 30,
+            "count": 30,
+        },
+        {
+            "id": "big",
+            "label": "大礼物",
+            "names": ["鲜花", "你最好看", "嘉年华", "跑车"],
+            "min_value": 10,
+            "max_value": 0,
+            "action": "add_time",
+            "seconds": 30,
+            "count": 30,
+        },
+    ],
+    "likes": {
+        "target": 100,
+        "reward": "hint",
+        "bonus_seconds": 45,
+        "multiplier": 2,
+    },
+    "streak": {
+        "bonus_per": 15,
+        "max_bonus": 60,
+    },
     "gifts": [
-        {"name": "小心心", "action": "random_words", "count": 50, "label": "随机 50 词"},
-        {"name": "大啤酒", "action": "random_words", "count": 100, "label": "随机 100 词"},
-        {"name": "鲜花", "action": "random_words", "count": 300, "label": "随机 300 词"},
-        {"name": "你最好看", "action": "extra_hint", "count": 1, "label": "解锁提示"},
-        {"name": "点赞", "action": "like", "count": 1, "threshold": 30, "label": "点赞满 30 次随机提示"},
+        {"name": "小心心", "action": "hint", "count": 1, "label": "小礼物 · 解锁提示"},
+        {"name": "大啤酒", "action": "hint", "count": 1, "label": "小礼物 · 解锁提示"},
+        {"name": "鲜花", "action": "add_time", "count": 30, "label": "大礼物 · 加时 30 秒"},
+        {"name": "你最好看", "action": "refresh", "count": 1, "label": "大礼物 · 刷新题目"},
     ],
 }
 

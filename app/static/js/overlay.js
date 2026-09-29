@@ -1,6 +1,23 @@
 const $ = (id) => document.getElementById(id);
 let lastAnnounce = 0;
 let lastAudio = "";
+let lastState = null;
+let boardCursor = 0;
+let seenEffect = 0;
+let shownWelcome = 0;
+let fxTimer = 0;
+let welcomeTimer = 0;
+const BOARD_ORDER = ["day", "week", "all"];
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[ch]));
+}
 
 function colorOf(name) {
   let h = 0;
@@ -66,28 +83,51 @@ function renderGuesses(list) {
     </div>`).join("");
 }
 
+function currentBoard(state) {
+  const boards = (state && state.boards) || {};
+  const key = BOARD_ORDER[boardCursor % BOARD_ORDER.length];
+  return boards[key] || { label: "总榜", rows: (state && state.leaderboard) || [] };
+}
+
 function renderBoard(list) {
   if (!list || !list.length) {
     return `<div class="empty">暂无积分</div>`;
   }
-  return (list || []).map((s) => `
+  return (list || []).map((s) => {
+    const streak = Number(s.streak) >= 2 ? `${s.streak}连击 · ` : "";
+    return `
     <div class="score">
       <div class="medal">${medal(s.place)}</div>
       ${avatar(s.nickname)}
       <div class="name">
-        <div class="nick">${s.nickname}</div>
-        <div class="badge">${s.rank_name}</div>
+        <div class="nick">${escapeHtml(s.nickname)}</div>
+        <div class="badge">${streak}${escapeHtml(s.rank_name || "")}</div>
       </div>
       <div class="pts">${s.points}</div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
+}
+
+function renderMiniBoard(state) {
+  const board = currentBoard(state);
+  const rows = (board.rows || []).slice(0, 4);
+  if (!rows.length) {
+    return `<div class="mini-board"><h3>${escapeHtml(board.label || "积分榜")}</h3><div class="empty">暂无积分</div></div>`;
+  }
+  const body = rows.map((s) => {
+    const streak = Number(s.streak) >= 2 ? ` ${s.streak}连` : "";
+    return `<div class="mini-row"><span>${medal(s.place)}</span><span class="nick">${escapeHtml(s.nickname)}</span><span>${escapeHtml(s.rank_name || "")}${streak}</span><span class="pts">${s.points}</span></div>`;
+  }).join("");
+  return `<div class="mini-board"><h3>${escapeHtml(board.label || "积分榜")}</h3>${body}</div>`;
 }
 
 function renderSemantic(state) {
+  const board = currentBoard(state);
   $("title").textContent = state.title || "挑战最强大脑";
   $("rightStat").textContent = `最高 ${(state.max_score || 0).toFixed(1)}%`;
   $("meta").textContent = [state.category, state.answer_len ? `答案 ${state.answer_len}` : ""].filter(Boolean).join(" · ");
   $("hints").innerHTML = (state.hints && state.hints.length)
-    ? `与 ${state.hints.map((h) => `<b>${h}</b>`).join("、")} 相关`
+    ? `与 ${state.hints.map((h) => `<b>${escapeHtml(h)}</b>`).join("、")} 相关`
     : "等待提示…";
   $("body").innerHTML = `
     <div class="panel">
@@ -95,10 +135,9 @@ function renderSemantic(state) {
       <div class="list">${renderGuesses(state.guesses)}</div>
     </div>
     <div class="panel">
-      <h3>积分榜</h3>
-      <div class="list">${renderBoard(state.leaderboard)}</div>
+      <h3>${escapeHtml(board.label || "积分榜")}</h3>
+      <div class="list">${renderBoard(board.rows)}</div>
     </div>`;
-  if (state.reveal) $("hints").insertAdjacentHTML("afterend", "");
 }
 
 function renderQuiz(state) {
@@ -106,16 +145,22 @@ function renderQuiz(state) {
   $("rightStat").textContent = state.winner ? `抢答 ${state.winner}` : "抢答中";
   $("meta").textContent = "发送 A/B/C/D 或完整答案";
   $("hints").textContent = state.reveal ? `正确答案：${state.reveal}` : "";
-  const opts = (state.options || []).map((o, i) => `<div class="opt">${"ABCD"[i]}. ${o}</div>`).join("");
-  const attempts = (state.attempts || []).slice(-8).map((a) => (
-    `<div class="chip">${a.nickname}：${a.text}${a.correct ? " ✓" : ""}</div>`
+  const eliminated = new Set(state.eliminated || []);
+  const opts = (state.options || []).map((o, i) => (
+    `<div class="opt${eliminated.has(i) ? " gone" : ""}">${"ABCD"[i]}. ${escapeHtml(o)}</div>`
   )).join("");
+  const attempts = (state.attempts || []).slice(-8).map((a) => (
+    `<div class="chip">${escapeHtml(a.nickname)}：${escapeHtml(a.text)}${a.correct ? " ✓" : ""}</div>`
+  )).join("");
+  const clue = state.clue ? `<div class="clue">${escapeHtml(state.clue)}</div>` : "";
   $("body").innerHTML = `
     <div class="panel" style="grid-column:1/-1">
       <div class="center-card">
-        <div class="q">${state.question || "等待出题"}</div>
+        <div class="q">${escapeHtml(state.question || "等待出题")}</div>
         <div class="opts">${opts}</div>
+        ${clue}
         <div class="chips">${attempts}</div>
+        ${renderMiniBoard(state)}
       </div>
     </div>`;
 }
@@ -135,6 +180,7 @@ function renderBomb(state) {
         <div>当前范围</div>
         <div class="range">${state.low} — ${state.high}</div>
         <div class="chips">${rows}</div>
+        ${renderMiniBoard(state)}
       </div>
     </div>`;
 }
@@ -151,14 +197,64 @@ function renderLottery(state) {
       <div class="center-card">
         ${win}
         <div class="chips">${chips || "等待参与…"}</div>
+        ${renderMiniBoard(state)}
       </div>
     </div>`;
 }
 
+function renderLike(state) {
+  const bar = state.like_bar || {};
+  const target = bar.target || 100;
+  $("likeCount").textContent = `${bar.count || 0} / ${target}`;
+  $("likeTitle").textContent = bar.reward_label || "点赞进度";
+  $("likeFill").style.width = `${Math.max(0, Math.min(100, Number(bar.percent) || 0))}%`;
+  const bonus = state.bonus || {};
+  $("bonus").textContent = bonus.active ? `${bonus.label} · 剩余 ${bonus.remaining} 秒` : "";
+}
+
+function renderWelcome(state) {
+  const welcome = state.welcome || {};
+  if (!welcome.seq || welcome.seq === shownWelcome) return;
+  shownWelcome = welcome.seq;
+  $("welcome").textContent = welcome.text || "";
+  clearTimeout(welcomeTimer);
+  welcomeTimer = setTimeout(() => {
+    if ($("welcome")) $("welcome").textContent = "";
+  }, 4000);
+}
+
+function playEffects(effects) {
+  const fresh = (effects || []).filter((item) => item && item.seq > seenEffect);
+  if (!fresh.length) return;
+  fresh.forEach((item) => {
+    seenEffect = Math.max(seenEffect, item.seq);
+  });
+  const fx = fresh[fresh.length - 1];
+  const el = $("fx");
+  if (!el) return;
+  const big = fx.tier === "big" || fx.kind === "level" ? " big" : "";
+  const kicker = fx.kind === "like" ? "点赞达成" : fx.kind === "level" ? "段位提升" : "感谢送礼";
+  el.hidden = false;
+  el.innerHTML = `<div class="fx-card${big} ${fx.kind || ""}">
+      <div class="fx-kicker">${kicker}</div>
+      <div class="fx-name">${escapeHtml(fx.headline || fx.nickname || "")}</div>
+      <div class="fx-detail">${escapeHtml(fx.detail || "")}</div>
+    </div>`;
+  clearTimeout(fxTimer);
+  fxTimer = setTimeout(() => {
+    el.hidden = true;
+    el.innerHTML = "";
+  }, 3400);
+}
+
 function render(state) {
+  lastState = state;
   $("roundText").textContent = `第${state.round || 0}局`;
   $("timer").textContent = fmtTime(state.countdown);
   $("announce").textContent = state.announcement || "";
+  renderLike(state);
+  renderWelcome(state);
+  playEffects(state.effects);
   renderGifts(state.gift_rules);
   const game = state.game;
   if (game === "quiz") renderQuiz(state);
@@ -197,4 +293,8 @@ function connect() {
 window.addEventListener("resize", fit);
 fit();
 connect();
+setInterval(() => {
+  boardCursor = (boardCursor + 1) % BOARD_ORDER.length;
+  if (lastState) render(lastState);
+}, 8000);
 fetch("/api/state").then((r) => r.json()).then(render);

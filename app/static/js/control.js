@@ -33,8 +33,57 @@ function fillConfig(cfg) {
   $("quizCountdown").value = (cfg.quiz || {}).countdown ?? 60;
   $("bombMax").value = (cfg.bomb || {}).max_value ?? 100;
   $("lotKeyword").value = (cfg.lottery || {}).keyword || "抽奖";
+  const tiers = cfg.gift_tiers || [];
+  const small = tiers.find((t) => t.id === "small") || tiers[0] || {};
+  const big = tiers.find((t) => t.id === "big") || tiers[1] || {};
+  $("smallNames").value = (small.names || []).join("\n");
+  $("smallMax").value = small.max_value || 9;
+  $("smallAction").value = small.action || "hint";
+  $("bigNames").value = (big.names || []).join("\n");
+  $("bigMin").value = big.min_value || 10;
+  $("bigAction").value = big.action || "add_time";
+  $("bigSeconds").value = big.seconds || 30;
+  const likes = cfg.likes || {};
+  $("likeTarget").value = likes.target ?? 100;
+  $("likeReward").value = likes.reward || "hint";
+  $("bonusSeconds").value = likes.bonus_seconds ?? 45;
+  $("bonusMult").value = likes.multiplier ?? 2;
+  const streak = cfg.streak || {};
+  $("streakPer").value = streak.bonus_per ?? 15;
+  $("streakMax").value = streak.max_bonus ?? 60;
+  const giftNames = [...(small.names || []), ...(big.names || [])];
+  $("giftName").innerHTML = (giftNames.length ? giftNames : ["小心心", "鲜花"]).map(
+    (name) => `<option>${name}</option>`
+  ).join("");
   renderIngest(cfg.ingest || {});
   renderScoring(cfg);
+}
+
+function splitNames(text) {
+  return String(text || "").split(/[,，\n]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+function tierPayload() {
+  return [
+    {
+      id: "small",
+      label: "小礼物",
+      names: splitNames($("smallNames").value),
+      min_value: 1,
+      max_value: Number($("smallMax").value || 9),
+      action: $("smallAction").value,
+      seconds: Number($("bigSeconds").value || 30),
+    },
+    {
+      id: "big",
+      label: "大礼物",
+      names: splitNames($("bigNames").value),
+      min_value: Number($("bigMin").value || 10),
+      max_value: 0,
+      action: $("bigAction").value,
+      seconds: Number($("bigSeconds").value || 30),
+    },
+  ];
 }
 
 function renderIngest(st) {
@@ -61,7 +110,20 @@ function renderScoring(info) {
 
 function renderState(state) {
   const host = (state && state.host) || {};
-  $("hostStatus").textContent = host.status_text || "等待开启回合…";
+  const bar = (state && state.like_bar) || {};
+  const bonus = (state && state.bonus) || {};
+  const extra = [];
+  if (bar.target) extra.push(`点赞 ${bar.count || 0}/${bar.target}`);
+  if (bonus.active) extra.push(`${bonus.label} 剩余 ${bonus.remaining} 秒`);
+  $("hostStatus").textContent = [host.status_text || "等待开启回合…", extra.join(" · ")].filter(Boolean).join("\n");
+  if ($("likeProgress") && bar.target) {
+    $("likeProgress").textContent = `点赞进度 ${bar.count || 0} / ${bar.target} · ${bar.reward_label || ""}`;
+  }
+  if ($("bonusStatus")) {
+    $("bonusStatus").textContent = bonus.active
+      ? `当前${bonus.label}，剩余 ${bonus.remaining} 秒`
+      : "满赞后解锁提示，或开启限时多倍积分。";
+  }
   if (state && state.game) $("gamePicker").value = state.game;
   if (state) renderScoring(state);
 }
@@ -105,13 +167,47 @@ $("sendChat").onclick = async () => {
 $("mockText").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") $("sendChat").click();
 });
-$("sendGift").onclick = async () => {
+async function sendGift(name) {
   await api("/api/mock/gift", {
     nickname: $("mockName").value,
-    gift_name: $("giftName").value,
+    gift_name: name || $("giftName").value,
     count: Number($("giftCount").value || 1),
   });
   toast("已模拟送礼");
+}
+$("sendGift").onclick = () => sendGift($("giftName").value);
+$("sendSmall").onclick = () => sendGift(splitNames($("smallNames").value)[0] || "小心心");
+$("sendBig").onclick = () => sendGift(splitNames($("bigNames").value)[0] || "鲜花");
+$("sendMember").onclick = async () => {
+  await api("/api/mock/member", { nickname: $("mockName").value || "新观众" });
+  toast("已模拟进场");
+};
+$("likeBurst").onclick = async () => {
+  await api("/api/mock/like", { nickname: $("mockName").value, count: 20 });
+  toast("已模拟点赞");
+};
+$("likeFill").onclick = async () => {
+  const target = Number($("likeTarget").value || 100);
+  await api("/api/mock/like", { nickname: $("mockName").value, count: target });
+  toast("已模拟灌满点赞");
+};
+$("saveGifts").onclick = async () => {
+  await api("/api/config", { payload: { gift_tiers: tierPayload() } });
+  toast("礼物档位已保存");
+  fillConfig(await api("/api/config"));
+};
+$("saveLikes").onclick = async () => {
+  await api("/api/config", {
+    payload: {
+      likes: {
+        target: Number($("likeTarget").value || 100),
+        reward: $("likeReward").value,
+        bonus_seconds: Number($("bonusSeconds").value || 45),
+        multiplier: Number($("bonusMult").value || 2),
+      },
+    },
+  });
+  toast("点赞设置已保存");
 };
 $("connectRoom").onclick = async () => {
   try {
@@ -163,9 +259,13 @@ $("saveRanks").onclick = async () => {
     payload: {
       points_per_sublevel: Number($("perSub").value || 180),
       rank_names: $("rankNames").value.split(/\n+/).map((s) => s.trim()).filter(Boolean),
+      streak: {
+        bonus_per: Number($("streakPer").value || 0),
+        max_bonus: Number($("streakMax").value || 0),
+      },
     },
   });
-  toast("段位已保存");
+  toast("段位与连击已保存");
 };
 $("saveParams").onclick = async () => {
   await api("/api/config", {

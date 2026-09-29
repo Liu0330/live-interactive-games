@@ -4,9 +4,9 @@ import threading
 import time
 from typing import Any
 
-from app import db
 from app.bus import ChatEvent, bus
 from app.config import load_config, save_config
+from app.engagement import get_engagement
 from app.games.bomb import BombGame
 from app.games.lottery import LotteryGame
 from app.games.quiz import QuizGame
@@ -37,6 +37,7 @@ class GameManager:
         self.active_id = active if active in self.games else "semantic"
         self.last_announce = ""
         self.announce_seq = 0
+        self.engagement = get_engagement()
         bus.subscribe(self._on_event)
 
     @property
@@ -62,6 +63,7 @@ class GameManager:
                 else:
                     self.game.embed_fn = None
             notes = self.game.start_round(specified)
+            notes.extend(self.engagement.apply_pending(self.game))
             self._note_announce(notes)
             return notes
 
@@ -81,10 +83,23 @@ class GameManager:
 
     def _on_event(self, event: ChatEvent) -> None:
         with self._lock:
-            if event.event_type == "gift":
-                notes = self.game.on_gift(event)
+            if event.event_type == "like" or _is_like_gift(event):
+                count = event.like_count or event.gift_count or 1
+                notes = self.engagement.on_likes(self.game, event.nickname, count)
+            elif event.event_type == "member":
+                notes = self.engagement.on_member(event)
+            elif event.event_type == "gift":
+                self.game.last_award = None
+                notes = self.engagement.on_gift(self.game, event)
+                award = getattr(self.game, "last_award", None)
+                if award:
+                    self.engagement.note_award(str(award.get("nickname") or event.nickname), award)
             else:
+                self.game.last_award = None
                 notes = self.game.on_comment(event)
+                award = getattr(self.game, "last_award", None)
+                if award:
+                    self.engagement.note_award(str(award.get("nickname") or event.nickname), award)
             self._note_announce(notes)
 
     def _note_announce(self, notes: list[str]) -> None:
@@ -98,22 +113,26 @@ class GameManager:
             game = self.game
             public = game.public_state()
             host_extra = game.host_state() if host else {}
-        board = db.leaderboard(
-            16,
-            cfg.get("rank_names"),
-            int(cfg.get("points_per_sublevel") or 180),
-        )
         from app.config import scoring_info
 
+        view = self.engagement.public_view()
+        public.pop("likes", None)
         public.update(
             {
                 "game": self.active_id,
                 "game_label": GAME_LABELS.get(self.active_id, game.title),
-                "leaderboard": board,
-                "gift_rules": cfg.get("gifts") or [],
+                "leaderboard": view["boards"]["all"]["rows"],
+                "gift_rules": view["gift_rules"],
                 "announce_seq": self.announce_seq,
                 "tts_enabled": bool(cfg.get("tts_enabled", True)),
                 "now": time.time(),
+                "like_bar": view["like_bar"],
+                "bonus": view["bonus"],
+                "effects": view["effects"],
+                "effect_seq": view["effect_seq"],
+                "welcome": view["welcome"],
+                "combo": view["combo"],
+                "boards": view["boards"],
                 **scoring_info(cfg),
             }
         )
@@ -129,6 +148,10 @@ class GameManager:
 
 
 manager = GameManager()
+
+
+def _is_like_gift(event: ChatEvent) -> bool:
+    return event.event_type == "gift" and (event.gift_name or "").strip() == "点赞"
 
 
 def preview_rank(points: int) -> str:

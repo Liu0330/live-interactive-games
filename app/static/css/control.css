@@ -81,6 +81,7 @@ label.field {
   padding: 0 2px;
 }
 .hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 8px; }
+textarea.short { min-height: 72px; }
 .toast {
   position: fixed;
   right: 18px;

@@ -19,6 +19,7 @@ class BaseGame(ABC):
         self.reveal_until = 0.0
         self.announcement = ""
         self.last_winner = ""
+        self.last_award: dict | None = None
 
     def remaining(self) -> int:
         if self.status != "playing":
@@ -53,6 +54,19 @@ class BaseGame(ABC):
 
     def on_gift(self, event: ChatEvent) -> list[str]:
         return []
+
+    def add_time(self, seconds: int) -> str:
+        seconds = int(seconds or 0)
+        if self.status != "playing" or seconds <= 0:
+            return ""
+        self.ends_at += seconds
+        return f"加时 {seconds} 秒"
+
+    def unlock_hint(self, nickname: str = "") -> str:
+        return ""
+
+    def refresh_prompt(self) -> str:
+        return ""
 
     @abstractmethod
     def public_state(self) -> dict[str, Any]:
