@@ -19,101 +19,59 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
-def init_db() -> None:
+def init_db() -> dict:
+    """启动时升级数据库。已有的表和行会保留。"""
     with _lock:
-        conn = _connect()
-        try:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS scores (
-                    user_id TEXT PRIMARY KEY,
-                    nickname TEXT NOT NULL,
-                    points INTEGER NOT NULL DEFAULT 0
-                )
-                """
-            )
-            cols = {row[1] for row in conn.execute("PRAGMA table_info(scores)")}
-            if "streak" not in cols:
-                conn.execute("ALTER TABLE scores ADD COLUMN streak INTEGER NOT NULL DEFAULT 0")
-            if "best_streak" not in cols:
-                conn.execute("ALTER TABLE scores ADD COLUMN best_streak INTEGER NOT NULL DEFAULT 0")
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS score_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL,
-                    nickname TEXT NOT NULL,
-                    delta INTEGER NOT NULL,
-                    reason TEXT NOT NULL,
-                    created_at INTEGER NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_score_events_time ON score_events(created_at)"
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS room_meta (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS related_cache (
-                    secret TEXT NOT NULL,
-                    word TEXT NOT NULL,
-                    score REAL NOT NULL,
-                    updated_at INTEGER NOT NULL,
-                    PRIMARY KEY (secret, word)
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS embed_cache (
-                    model TEXT NOT NULL,
-                    kind TEXT NOT NULL,
-                    text TEXT NOT NULL,
-                    vector TEXT NOT NULL,
-                    updated_at INTEGER NOT NULL,
-                    PRIMARY KEY (model, kind, text)
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS extra_idioms (
-                    idiom TEXT PRIMARY KEY,
-                    created_at INTEGER NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS emoji_puzzles (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    category TEXT NOT NULL,
-                    emojis TEXT NOT NULL,
-                    answer TEXT NOT NULL,
-                    aliases TEXT NOT NULL DEFAULT '[]',
-                    hint TEXT NOT NULL DEFAULT '',
-                    created_at INTEGER NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS emoji_hidden (
-                    puzzle_key TEXT PRIMARY KEY
-                )
-                """
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        from app.migrate import migrate_database
+
+        return migrate_database(DB_PATH)
+
+
+def _sync_global(conn: sqlite3.Connection, user_id: str, nickname: str) -> None:
+    account = (user_id or "").strip() or (nickname or "").strip() or "观众"
+    conn.execute(
+        """
+        INSERT INTO account_sources (legacy_user_id, account_id)
+        VALUES (?, ?)
+        ON CONFLICT(legacy_user_id) DO NOTHING
+        """,
+        (user_id, account),
+    )
+    mapped = conn.execute(
+        "SELECT account_id FROM account_sources WHERE legacy_user_id = ?",
+        (user_id,),
+    ).fetchone()
+    if mapped:
+        account = str(mapped["account_id"])
+    totals = conn.execute(
+        """
+        SELECT COALESCE(SUM(s.points), 0) AS points,
+               COALESCE(MAX(s.streak), 0) AS streak,
+               COALESCE(MAX(s.best_streak), 0) AS best_streak
+        FROM account_sources src
+        JOIN scores s ON s.user_id = src.legacy_user_id
+        WHERE src.account_id = ?
+        """,
+        (account,),
+    ).fetchone()
+    conn.execute(
+        """
+        INSERT INTO global_accounts (account_id, nickname, points, streak, best_streak)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(account_id) DO UPDATE SET
+            nickname = excluded.nickname,
+            points = excluded.points,
+            streak = excluded.streak,
+            best_streak = excluded.best_streak
+        """,
+        (
+            account,
+            nickname,
+            int(totals["points"] or 0),
+            int(totals["streak"] or 0),
+            int(totals["best_streak"] or 0),
+        ),
+    )
 
 
 def add_points(user_id: str, nickname: str, delta: int) -> int:
@@ -137,6 +95,7 @@ def add_points(user_id: str, nickname: str, delta: int) -> int:
                     "INSERT INTO scores (user_id, nickname, points) VALUES (?, ?, ?)",
                     (user_id, nickname, points),
                 )
+            _sync_global(conn, user_id, nickname)
             conn.commit()
             return points
         finally:
@@ -170,10 +129,19 @@ def get_user(user_id: str) -> dict:
     with _lock:
         conn = _connect()
         try:
+            key = (user_id or "").strip() or user_id
             row = conn.execute(
-                "SELECT nickname, points, streak, best_streak FROM scores WHERE user_id = ?",
-                (user_id,),
+                """
+                SELECT nickname, points, streak, best_streak
+                FROM global_accounts WHERE account_id = ?
+                """,
+                (key,),
             ).fetchone()
+            if not row:
+                row = conn.execute(
+                    "SELECT nickname, points, streak, best_streak FROM scores WHERE user_id = ?",
+                    (key,),
+                ).fetchone()
         finally:
             conn.close()
     if not row:
@@ -209,6 +177,7 @@ def set_streak(user_id: str, nickname: str, streak: int) -> None:
                     """,
                     (user_id, nickname, streak, streak),
                 )
+            _sync_global(conn, user_id, nickname)
             conn.commit()
         finally:
             conn.close()
@@ -250,13 +219,23 @@ def leaderboard(limit: int = 20, rank_names: list[str] | None = None, per_sub: i
         try:
             rows = conn.execute(
                 """
-                SELECT user_id, nickname, points, streak
-                FROM scores
+                SELECT account_id AS user_id, nickname, points, streak
+                FROM global_accounts
                 ORDER BY points DESC, nickname ASC
                 LIMIT ?
                 """,
                 (limit,),
             ).fetchall()
+            if not rows:
+                rows = conn.execute(
+                    """
+                    SELECT user_id, nickname, points, streak
+                    FROM scores
+                    ORDER BY points DESC, nickname ASC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
         finally:
             conn.close()
     out = []
@@ -354,6 +333,8 @@ def clear_leaderboard() -> None:
         try:
             conn.execute("DELETE FROM scores")
             conn.execute("DELETE FROM score_events")
+            conn.execute("DELETE FROM global_accounts")
+            conn.execute("DELETE FROM account_sources")
             conn.commit()
         finally:
             conn.close()
