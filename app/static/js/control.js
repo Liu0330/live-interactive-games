@@ -283,7 +283,7 @@ async function refreshAll() {
 $("resetUsage").onclick = async () => {
   if (!confirm("确定清空接口用量记录？积分不受影响。")) return;
   try {
-    const data = await api("/api/usage/reset");
+    const data = await api("/api/usage/reset", {});
     renderUsage(data.usage);
     toast("用量记录已清空");
   } catch (e) { toast(e.message); }
