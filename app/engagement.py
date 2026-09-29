@@ -233,7 +233,7 @@ class Engagement:
             "nickname": event.nickname,
             "text": f"欢迎 {event.nickname} 进入直播间",
         }
-        return ["member"]
+        return ["member", "announce"]
 
     def on_likes(self, game: Any, nickname: str, count: int) -> list[str]:
         count = max(1, int(count or 1))

@@ -71,6 +71,18 @@ def init_db() -> None:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS embed_cache (
+                    model TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    vector TEXT NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    PRIMARY KEY (model, kind, text)
+                )
+                """
+            )
             conn.commit()
         finally:
             conn.close()

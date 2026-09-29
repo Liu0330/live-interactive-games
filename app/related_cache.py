@@ -4,7 +4,7 @@ import threading
 import time
 from collections.abc import Callable
 
-from app.config import llm_ready
+from app.config import chat_ready as llm_ready
 from app.db import init_db
 from app.games.similarity import normalize_word
 from app.llm import fetch_refine, fetch_related

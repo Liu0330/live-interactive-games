@@ -18,8 +18,9 @@
 - Windows / macOS / Linux
 - Python 3.11 或以上
 - Google Chrome（或 Edge）用来打开控制台和游戏画面
-- 可选：OpenAI 兼容的对话接口（扩词库、出题、语义相关词预取）
-- 可选：硅基流动 API Key，用来做语义向量和 CosyVoice 语音
+- 推荐：MiniMax API Key（对话、语义向量、礼物和进场语音）
+- 可选：OpenAI 兼容的对话接口，MiniMax 未配置时用来扩词和相关词预取
+- 可选：硅基流动 API Key，MiniMax 未配置时用来做语义向量和 CosyVoice 语音
 
 ---
 
@@ -86,9 +87,48 @@ Overlay 按 1080×1920 设计，窗口随便缩放都会等比适配。伴侣里
 
 ---
 
+## MiniMax（推荐）
+
+国内 MiniMax 一套密钥就能做三件事：对话扩词、语义向量计分、礼物和进场的语音感谢。在控制台「MiniMax」里填写，或在主播电脑上设置环境变量。下面全是占位值，把密钥换成你自己的：
+
+```bash
+MINIMAX_API_KEY=sk-replace-me
+MINIMAX_BASE_URL=https://api.minimaxi.com
+MINIMAX_CHAT_MODEL=MiniMax-M3
+MINIMAX_EMBED_MODEL=embo-01
+MINIMAX_TTS_MODEL=speech-02-turbo
+MINIMAX_TTS_VOICE=male-qn-qingse
+```
+
+只设 `MINIMAX_API_KEY` 也可以，其余会用上面的默认值。同一份配置写在本机 `data/config.json`（已在 `.gitignore` 里，不要提交），字段名是：
+
+```json
+{
+  "minimax_api_key": "sk-replace-me",
+  "minimax_base_url": "https://api.minimaxi.com",
+  "minimax_chat_model": "MiniMax-M3",
+  "minimax_embed_model": "embo-01",
+  "minimax_tts_model": "speech-02-turbo",
+  "minimax_tts_voice": "male-qn-qingse"
+}
+```
+
+环境变量非空时盖过这个文件。控制台里密钥留空再点保存，不会清掉已经保存的密钥。
+
+配好之后：
+
+1. **AI 生成并入库**、**生成题目** 走 MiniMax 的 Anthropic 兼容对话接口（`/anthropic/v1/messages`）。如果回复里夹了 `<think>` 标签，会先剥掉再解析。
+2. 语义猜词用 `embo-01` 向量。谜底按 `type=db` 缓存，观众的词按 `type=query` 缓存，都写在本机 SQLite。弹幕进来只查缓存，**不会等网络**。缓存没有时先用本地拼音+字面，向量回来后再更新分数。
+3. 猜中分取本地分和向量分里的较高者。默认向量分封顶在猜中阈值之下，同义词不会单靠模型分获胜。勾选「模型分可直接猜中」后才允许过线。谐音如果本地分已经够高，仍按本地规则判。
+4. 向量超时、报错时继续用本地分。请求会合并成小批量，超时大约 8 秒。
+5. 礼物感谢和进场欢迎用 `speech-02-turbo`。音色在控制台改，默认 `male-qn-qingse`。语音失败就改用浏览器 `speechSynthesis`。
+6. 控制台「计分方式」显示「MiniMax 向量」，并写上当前语音来源。
+
+好几个密钥同时存在时，计分和语音都优先 MiniMax，然后是硅基流动，再然后是下面的通用对话接口，最后是本地拼音和浏览器语音。
+
 ## 对话模型（可选）
 
-语义猜词、扩词库和出题可以走任意 OpenAI 兼容的 `chat/completions`。这个接口**只有对话**，没有向量，也没有语音。
+没有 MiniMax 时，语义猜词、扩词库和出题可以走任意 OpenAI 兼容的 `chat/completions`。这个接口**只有对话**，没有向量，也没有语音。
 
 在控制台「对话模型」里填写，或在启动前设置环境变量（下面是占位值，请换成你自己的）：
 
@@ -98,17 +138,17 @@ LLM_API_KEY=sk-replace-me
 LLM_MODEL=glm-5.2
 ```
 
-地址和模型也可以写进本机 `data/config.json`（已加入 `.gitignore`，不要提交）。默认地址就是上面的接口，默认模型 `glm-5.2`。留空密钥表示不用。环境变量非空时盖过配置文件。控制台里密钥留空再点保存，不会清掉已经保存的密钥。
+对应的 `data/config.json` 字段是 `llm_base_url`、`llm_api_key`、`llm_model`。默认模型 `glm-5.2`。留空密钥表示不用。
 
-配好之后：
+配好、且没有 MiniMax 时：
 
-1. **AI 生成并入库**、**生成题目** 走这个对话接口。
-2. 语义猜词在回合开始时，后台向模型要一份相关词和 0–100 的相关分，写入本机 SQLite，下一轮相同谜底直接用缓存。弹幕进来只查这张表，**不会等那十几秒**。
-3. 猜中分 = 本地拼音/字面分，和缓存相关分里的较高者。默认相关分封顶在猜中阈值之下，所以同义词、近义词**不会单靠模型分获胜**。勾选「相关词可直接猜中」后才允许模型分过线。谐音如果本地分已经够高，仍按本地规则判。
-4. 模型超时、报错或返回的不是 JSON 时，这一轮继续用本地拼音+字面。
-5. 控制台「计分方式」会显示「大模型相关词」。如果同时还配了硅基流动密钥，计分改显示「硅基流动向量」（向量优先），对话接口仍负责扩词和出题。
+1. **AI 生成并入库**、**生成题目** 走这个对话接口。OpenAI 兼容回复里的 `<think>` 段会被剥掉。
+2. 回合开始时后台要一份相关词和 0–100 的相关分，写入 SQLite。弹幕只查缓存。
+3. 默认相关分封顶在猜中阈值之下。勾选「模型分可直接猜中」后才允许过线。
+4. 超时或返回的不是 JSON 时，继续用本地拼音+字面。
+5. 控制台「计分方式」显示「大模型相关词」。语音用浏览器 `speechSynthesis`。
 
-只配对话接口、不配硅基流动时，感谢语和播报用浏览器 `speechSynthesis`。
+如果同时还配了硅基流动、但没有 MiniMax，计分显示「硅基流动向量」，这个对话接口仍负责扩词和出题。
 
 ## 硅基流动（可选）
 
@@ -117,9 +157,9 @@ LLM_MODEL=glm-5.2
 1. 打开 https://cloud.siliconflow.cn 注册并创建 API Key。
 2. 在控制台「硅基流动」里粘贴密钥，选一个当前列表里的模型（默认 `deepseek-ai/DeepSeek-V3`）。
 3. 点 **保存密钥**，再点 **测试连接**。
-4. 没配上方的对话接口时，扩词库也走硅基流动。需要扩词库时填主题（如「食物」「四字成语」），点 **AI 生成并入库**。
-5. 有密钥时，语义相似度走 `BAAI/bge-m3` 向量，并与本地拼音/字面取较高值。
-6. 语音播报：有硅基流动密钥时走 CosyVoice；否则 Overlay 用浏览器 `speechSynthesis`。
+4. MiniMax 和上方的对话接口都没配时，扩词库走硅基流动。需要扩词库时填主题（如「食物」「四字成语」），点 **AI 生成并入库**。
+5. 有密钥、且没有 MiniMax 时，语义相似度走 `BAAI/bge-m3` 向量，并与本地拼音/字面取较高值。
+6. 语音播报：没有 MiniMax 时，有硅基流动密钥就走 CosyVoice；否则 Overlay 用浏览器 `speechSynthesis`。
 
 **不要**把任何密钥写进仓库，也不要发给别人。文档和示例里只用 `sk-replace-me` 这种占位符。
 
@@ -179,7 +219,7 @@ LLM_MODEL=glm-5.2
 
 大礼物还可以改成 **跳过当前** 或 **刷新题目/词语**。名称优先于钻石数。没对上名字、也没有钻石数的礼物，按小礼物处理，保证每个礼物都有反应。
 
-每个礼物都会在 Overlay 上弹出感谢动画（送礼人 + 效果）。有硅基流动密钥时，感谢语用 CosyVoice 播报；没有密钥时，画面用浏览器 `speechSynthesis`，不配密钥也能出声。
+每个礼物都会在 Overlay 上弹出感谢动画（送礼人 + 效果），进场也会播一句欢迎。有 MiniMax 密钥时用 MiniMax 语音，否则有硅基流动密钥时用 CosyVoice，都没有时用浏览器 `speechSynthesis`。
 
 各玩法里的效果：
 

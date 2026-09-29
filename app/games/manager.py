@@ -38,9 +38,11 @@ class GameManager:
         self.last_announce = ""
         self.announce_seq = 0
         self.engagement = get_engagement()
+        from app.embed_cache import set_listener as set_embed_listener
         from app.related_cache import set_listener
 
         set_listener(self._on_related)
+        set_embed_listener(self._on_embeds)
         bus.subscribe(self._on_event)
 
     @property
@@ -57,9 +59,11 @@ class GameManager:
     def start_round(self, specified: str = "") -> list[str]:
         with self._lock:
             if self.active_id == "semantic":
-                from app.config import api_key
+                from app.config import api_key, minimax_ready
 
-                if api_key():
+                if minimax_ready():
+                    self.game.embed_fn = None
+                elif api_key():
                     from app.siliconflow import embed_similarity
 
                     self.game.embed_fn = embed_similarity
@@ -68,6 +72,7 @@ class GameManager:
             notes = self.game.start_round(specified)
             if self.active_id == "semantic":
                 self._arm_semantic_llm()
+                self._arm_minimax_embed()
             notes.extend(self.engagement.apply_pending(self.game))
             self._note_announce(notes)
             return notes
@@ -87,10 +92,10 @@ class GameManager:
             return notes
 
     def _arm_semantic_llm(self) -> None:
-        from app.config import llm_ready
+        from app.config import chat_ready
         from app.related_cache import get_related, schedule_prefetch
 
-        if not llm_ready():
+        if not chat_ready():
             return
         game = self.game
         cached = get_related(game.secret)
@@ -101,6 +106,27 @@ class GameManager:
         prepared = getattr(game, "prepared", "")
         if prepared:
             schedule_prefetch(prepared)
+
+    def _arm_minimax_embed(self) -> None:
+        from app.config import minimax_ready
+        from app.embed_cache import schedule_secret
+
+        if not minimax_ready():
+            return
+        schedule_secret(self.game.secret)
+        prepared = getattr(self.game, "prepared", "")
+        if prepared:
+            schedule_secret(prepared)
+
+    def _on_embeds(self, _texts: list[str]) -> None:
+        with self._lock:
+            game = self.games.get("semantic")
+            if game is None or not hasattr(game, "rescore_embeddings"):
+                return
+            before = game.status
+            game.rescore_embeddings()
+            if game.status != before and game.announcement:
+                self._note_announce(["announce", "win"])
 
     def _on_related(self, secret: str, mapping: dict[str, float]) -> None:
         from app.games.similarity import normalize_word
@@ -121,6 +147,11 @@ class GameManager:
                 notes = self.engagement.on_likes(self.game, event.nickname, count)
             elif event.event_type == "member":
                 notes = self.engagement.on_member(event)
+                welcome = (self.engagement.welcome or {}).get("text") or ""
+                if welcome and hasattr(self.game, "announcement"):
+                    self.game.announcement = welcome
+                    if "announce" not in notes:
+                        notes = [*notes, "announce"]
             elif event.event_type == "gift":
                 self.game.last_award = None
                 notes = self.engagement.on_gift(self.game, event)

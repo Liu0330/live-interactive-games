@@ -118,12 +118,24 @@ class SemanticGame(BaseGame):
         if not word:
             return 0.0
         local = local_similarity(word, secret)
+        from app.config import llm_ready, load_config, minimax_ready
+
+        if minimax_ready():
+            from app.embed_cache import lookup_percent, schedule_guess
+            from app.related_cache import combine_scores
+
+            embed = lookup_percent(secret, word)
+            threshold = float(self._params().get("hit_threshold") or 80)
+            allow = bool(load_config().get("llm_related_can_win"))
+            if embed is None:
+                schedule_guess(secret, word)
+                return local
+            return combine_scores(local, embed, hit_threshold=threshold, allow_related_win=allow)
         if self.embed_fn:
             try:
                 return blend_score(local, float(self.embed_fn(word, secret)))
             except Exception:
                 return local
-        from app.config import llm_ready, load_config
         from app.related_cache import combine_scores, lookup_score, schedule_refine
 
         if not llm_ready():
@@ -150,7 +162,9 @@ class SemanticGame(BaseGame):
         if added:
             rest = [word for word in self.hint_pool if word not in added and word != secret]
             self.hint_pool = added + rest
-        if not self.embed_fn:
+        from app.config import minimax_ready
+
+        if not self.embed_fn and not minimax_ready():
             self._rescore_with_cache()
 
     def _rescore_with_cache(self) -> None:
@@ -183,6 +197,47 @@ class SemanticGame(BaseGame):
                 and (winner is None or float(row["score"]) > float(winner["score"]))
             ):
                 winner = row
+        self.max_score = max(float(row["score"]) for row in self.guesses)
+        if winner is not None:
+            self._win(str(winner.get("nickname") or ""), str(winner.get("user_id") or ""), str(winner["word"]))
+
+    def rescore_embeddings(self) -> None:
+        from app.config import load_config, minimax_ready
+        from app.embed_cache import lookup_percent
+        from app.related_cache import combine_scores
+
+        if self.embed_fn or not minimax_ready() or not self.guesses:
+            return
+        mapping_ready = False
+        threshold = float(self._params().get("hit_threshold") or 80)
+        allow = bool(load_config().get("llm_related_can_win"))
+        secret = normalize_word(self.secret)
+        winner = None
+        for row in self.guesses:
+            word = normalize_word(str(row.get("word") or ""))
+            if not word or word == secret:
+                continue
+            embed = lookup_percent(secret, word)
+            if embed is None:
+                continue
+            mapping_ready = True
+            local = local_similarity(word, secret)
+            row["score"] = combine_scores(
+                local,
+                embed,
+                hit_threshold=threshold,
+                allow_related_win=allow,
+            )
+            if (
+                allow
+                and self.status == "playing"
+                and not self.winner
+                and float(row["score"]) + 1e-6 >= threshold
+                and (winner is None or float(row["score"]) > float(winner["score"]))
+            ):
+                winner = row
+        if not mapping_ready:
+            return
         self.max_score = max(float(row["score"]) for row in self.guesses)
         if winner is not None:
             self._win(str(winner.get("nickname") or ""), str(winner.get("user_id") or ""), str(winner["word"]))
@@ -268,9 +323,11 @@ class SemanticGame(BaseGame):
         self.max_score = 0.0
         self.winner = ""
         self.winner_word = ""
+        from app.embed_cache import schedule_secret
         from app.related_cache import schedule_prefetch
 
         schedule_prefetch(self.secret)
+        schedule_secret(self.secret)
         return "已刷新本轮词语"
 
     def inject_random_words(self, nickname: str, user_id: str, count: int) -> int:

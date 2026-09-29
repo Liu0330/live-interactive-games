@@ -38,6 +38,16 @@ class LlmBody(BaseModel):
     llm_related_can_win: bool = False
 
 
+class MinimaxBody(BaseModel):
+    minimax_api_key: str = ""
+    minimax_base_url: str = ""
+    minimax_chat_model: str = ""
+    minimax_embed_model: str = ""
+    minimax_tts_model: str = ""
+    minimax_tts_voice: str = ""
+    llm_related_can_win: bool = False
+
+
 class GenerateBody(BaseModel):
     count: int = 50
     theme: str = ""
@@ -209,6 +219,11 @@ def api_save_config(body: ConfigBody) -> dict:
         "llm_model",
         "llm_related_can_win",
         "llm_related_count",
+        "minimax_base_url",
+        "minimax_chat_model",
+        "minimax_embed_model",
+        "minimax_tts_model",
+        "minimax_tts_voice",
         "embed_model",
         "tts_enabled",
         "tts_model",
@@ -273,6 +288,35 @@ def api_save_llm(body: LlmBody) -> dict:
     return {"ok": True, "config": public_config()}
 
 
+@app.post("/api/minimax")
+def api_save_minimax(body: MinimaxBody) -> dict:
+    patch: dict = {
+        "minimax_base_url": body.minimax_base_url.strip() or "https://api.minimaxi.com",
+        "minimax_chat_model": body.minimax_chat_model.strip() or "MiniMax-M3",
+        "minimax_embed_model": body.minimax_embed_model.strip() or "embo-01",
+        "minimax_tts_model": body.minimax_tts_model.strip() or "speech-02-turbo",
+        "minimax_tts_voice": body.minimax_tts_voice.strip() or "male-qn-qingse",
+        "llm_related_can_win": bool(body.llm_related_can_win),
+    }
+    if body.minimax_api_key.strip():
+        patch["minimax_api_key"] = body.minimax_api_key.strip()
+    save_config(patch)
+    return {"ok": True, "config": public_config()}
+
+
+@app.post("/api/minimax/test")
+def api_test_minimax() -> dict:
+    from app.config import minimax_ready
+    from app.minimax import MinimaxError, test_connection
+
+    if not minimax_ready():
+        raise HTTPException(400, "请先保存 MiniMax 密钥")
+    try:
+        return test_connection()
+    except MinimaxError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @app.post("/api/llm/test")
 def api_test_llm() -> dict:
     from app.config import llm_ready
@@ -289,6 +333,7 @@ def api_test_llm() -> dict:
 @app.post("/api/generate")
 def api_generate(body: GenerateBody) -> dict:
     from app.llm import ChatError, generate_questions, generate_words
+    from app.minimax import MinimaxError
     from app.siliconflow import SiliconFlowError
 
     try:
@@ -299,7 +344,7 @@ def api_generate(body: GenerateBody) -> dict:
         words = sanitize_generated(generate_words(body.count, body.theme))
         bank = add_words(words, overwrite=body.overwrite)
         return {"ok": True, "count": len(bank), "added": len(words), "words": words}
-    except (SiliconFlowError, ChatError) as exc:
+    except (SiliconFlowError, ChatError, MinimaxError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
 

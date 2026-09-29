@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from app.config import llm_ready, llm_settings, load_config
+from app.config import llm_ready, llm_settings, load_config, minimax_ready
 from app.games.similarity import normalize_word
 
 DEFAULT_TIMEOUT = 28.0
@@ -42,6 +42,10 @@ def chat_completion(
     temperature: float = 0.2,
     max_tokens: int = 1800,
 ) -> str:
+    if minimax_ready():
+        from app.minimax import complete_chat
+
+        return complete_chat(messages, timeout=timeout, temperature=temperature, max_tokens=max_tokens)
     base, key, model = llm_settings()
     if not base or not key:
         raise ChatError("未配置对话接口")
@@ -66,7 +70,10 @@ def chat_completion(
         data = resp.json()
     except json.JSONDecodeError as exc:
         raise ChatError("对话接口没有返回 JSON") from exc
-    return (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+    from app.minimax import strip_think
+
+    text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+    return strip_think(text)
 
 
 def chat_json(prompt: str, system: str, *, timeout: float = DEFAULT_TIMEOUT, temperature: float = 0.4) -> Any:
@@ -139,7 +146,7 @@ def parse_related_payload(data: Any, secret: str) -> dict[str, float]:
 
 def fetch_related(secret: str) -> dict[str, float] | None:
     secret = normalize_word(secret)
-    if not secret or not llm_ready():
+    if not secret or not (minimax_ready() or llm_ready()):
         return None
     system = (
         "你是语义相关度标注器。只输出一个 JSON 对象，不要解释，不要 Markdown。"
@@ -167,7 +174,7 @@ def fetch_refine(secret: str, words: list[str]) -> dict[str, float] | None:
         item = normalize_word(word)
         if item and item != secret_n and item not in clean:
             clean.append(item)
-    if not secret_n or not clean or not llm_ready():
+    if not secret_n or not clean or not (minimax_ready() or llm_ready()):
         return None
     system = (
         "你是语义相关度标注器。只输出 JSON 对象，不要解释。"
@@ -186,7 +193,7 @@ def fetch_refine(secret: str, words: list[str]) -> dict[str, float] | None:
 
 
 def generate_words(n: int, theme: str = "") -> list[str]:
-    if llm_ready():
+    if minimax_ready() or llm_ready():
         return _generate_words_llm(n, theme)
     from app.siliconflow import generate_words as silicon_words
 
@@ -194,7 +201,7 @@ def generate_words(n: int, theme: str = "") -> list[str]:
 
 
 def generate_questions(n: int, theme: str = "") -> list[dict]:
-    if llm_ready():
+    if minimax_ready() or llm_ready():
         return _generate_questions_llm(n, theme)
     from app.siliconflow import generate_questions as silicon_questions
 

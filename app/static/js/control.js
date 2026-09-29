@@ -27,6 +27,17 @@ function fillConfig(cfg) {
   $("llmKey").value = "";
   $("llmKey").placeholder = cfg.llm_api_key_masked || "尚未保存密钥";
   $("llmCanWin").checked = !!cfg.llm_related_can_win;
+  $("mmBase").value = cfg.minimax_base_url || "https://api.minimaxi.com";
+  $("mmChat").value = cfg.minimax_chat_model || "MiniMax-M3";
+  $("mmEmbed").value = cfg.minimax_embed_model || "embo-01";
+  $("mmTts").value = cfg.minimax_tts_model || "speech-02-turbo";
+  $("mmVoice").value = cfg.minimax_tts_voice || "male-qn-qingse";
+  $("mmKey").value = "";
+  $("mmKey").placeholder = cfg.minimax_api_key_masked || "尚未保存密钥";
+  $("mmCanWin").checked = !!cfg.llm_related_can_win;
+  $("mmVoices").innerHTML = (cfg.minimax_voices || []).map(
+    (item) => `<option value="${item.id}">${item.label}</option>`
+  ).join("");
   $("perSub").value = cfg.points_per_sublevel || 180;
   $("rankNames").value = (cfg.rank_names || []).join("\n");
   $("gamePicker").value = cfg.active_game || "semantic";
@@ -108,9 +119,10 @@ function renderScoring(info) {
   const el = $("scoringMode");
   if (!el) return;
   const label = info.scoring_mode_label || "本地拼音+字面";
-  const missing = (info.has_api_key || info.has_llm) ? "" : "（未配置 API Key）";
+  const missing = (info.has_api_key || info.has_llm || info.has_minimax) ? "" : "（未配置 API Key）";
   const detail = info.scoring_mode_detail ? ` · ${info.scoring_mode_detail}` : "";
-  el.textContent = `计分方式：${label}${missing}${detail}`;
+  const voice = info.voice_mode_label ? ` · 语音：${info.voice_mode_label}` : "";
+  el.textContent = `计分方式：${label}${missing}${detail}${voice}`;
 }
 
 function renderState(state) {
@@ -224,6 +236,28 @@ $("connectRoom").onclick = async () => {
 $("disconnectRoom").onclick = async () => {
   const data = await api("/api/douyin/disconnect");
   renderIngest(data.ingest);
+};
+$("saveMinimax").onclick = async () => {
+  try {
+    const data = await api("/api/minimax", {
+      minimax_base_url: $("mmBase").value,
+      minimax_api_key: $("mmKey").value,
+      minimax_chat_model: $("mmChat").value,
+      minimax_embed_model: $("mmEmbed").value,
+      minimax_tts_model: $("mmTts").value,
+      minimax_tts_voice: $("mmVoice").value,
+      llm_related_can_win: $("mmCanWin").checked,
+    });
+    $("mmKey").value = "";
+    fillConfig(data.config);
+    toast("MiniMax 已保存");
+  } catch (e) { toast(e.message); }
+};
+$("testMinimax").onclick = async () => {
+  try {
+    const data = await api("/api/minimax/test");
+    toast("MiniMax 对话成功：" + (data.reply || data.model));
+  } catch (e) { toast(e.message); }
 };
 $("saveLlm").onclick = async () => {
   try {

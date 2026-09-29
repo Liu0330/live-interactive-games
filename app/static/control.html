@@ -89,7 +89,7 @@
 
       <section class="card">
         <h2>礼物档位</h2>
-        <p class="hint">小礼物默认解锁提示，大礼物可加时、跳过或刷新当前词/题目。每个礼物都会在画面上出现感谢动画；有硅基流动密钥时用 CosyVoice 播报，否则用浏览器语音。</p>
+        <p class="hint">小礼物默认解锁提示，大礼物可加时、跳过或刷新当前词/题目。每个礼物和进场都会在画面上出现感谢。语音优先用 MiniMax，其次 CosyVoice，否则用浏览器语音。</p>
         <label class="field">小礼物名称（逗号或换行）</label>
         <textarea id="smallNames" class="short"></textarea>
         <label class="field">小礼物钻石上限（名称对不上时）</label>
@@ -138,15 +138,39 @@
       </section>
 
       <section class="card">
+        <h2>MiniMax（推荐）</h2>
+        <p class="hint">一套密钥同时用于对话、语义向量和礼物/进场语音。弹幕计分只读缓存，不等网络。没配密钥时再看下面的对话接口和硅基流动。</p>
+        <label class="field">API Key</label>
+        <input id="mmKey" type="password" placeholder="仅保存在本机，留空则不改已保存的密钥" autocomplete="off">
+        <label class="field">接口根地址</label>
+        <input id="mmBase" placeholder="https://api.minimaxi.com">
+        <label class="field">对话 / 向量 / 语音模型</label>
+        <input id="mmChat" placeholder="MiniMax-M3">
+        <div class="row">
+          <input id="mmEmbed" placeholder="embo-01">
+          <input id="mmTts" placeholder="speech-02-turbo">
+        </div>
+        <label class="field">语音音色</label>
+        <input id="mmVoice" list="mmVoices" placeholder="male-qn-qingse">
+        <datalist id="mmVoices"></datalist>
+        <label class="field"><input id="mmCanWin" type="checkbox" style="width:auto"> 模型分可直接猜中</label>
+        <div class="row btns" style="margin-top:10px">
+          <button class="btn ghost" id="saveMinimax">保存 MiniMax</button>
+          <button class="btn ghost" id="testMinimax">测试对话</button>
+        </div>
+        <p class="hint">向量请求约数秒，在后台批量缓存。默认同义词到不了猜中线。语音失败时改用浏览器朗读。</p>
+      </section>
+
+      <section class="card">
         <h2>对话模型</h2>
-        <p class="hint">OpenAI 兼容的对话接口。配好后用来扩词库、出题，并在回合开始时后台预取语义相关词。这个接口没有向量和语音，播报仍走浏览器语音。</p>
+        <p class="hint">备用的 OpenAI 兼容对话接口。MiniMax 已配置时，扩词、出题和计分都走 MiniMax。这里没有向量和语音。</p>
         <label class="field">接口地址</label>
         <input id="llmBase" placeholder="https://codingplan.alayanew.com/v1">
         <label class="field">API Key</label>
         <input id="llmKey" type="password" placeholder="仅保存在本机，留空则不改已保存的密钥" autocomplete="off">
         <label class="field">对话模型</label>
         <input id="llmModel" placeholder="glm-5.2">
-        <label class="field"><input id="llmCanWin" type="checkbox" style="width:auto"> 相关词可直接猜中</label>
+        <label class="field"><input id="llmCanWin" type="checkbox" style="width:auto"> 模型分可直接猜中</label>
         <div class="row btns" style="margin-top:10px">
           <button class="btn ghost" id="saveLlm">保存对话接口</button>
           <button class="btn ghost" id="testLlm">测试对话</button>
@@ -171,7 +195,7 @@
           <button class="btn" id="genWords">AI 生成并入库</button>
           <button class="btn ghost" id="genQuiz">生成题目</button>
         </div>
-        <p class="hint" id="aiHint">有硅基流动密钥时，语义计分用向量，语音用 CosyVoice。只配上方对话接口时，计分用缓存相关词，语音用浏览器朗读。</p>
+        <p class="hint" id="aiHint">优先级：MiniMax 向量与语音，其次硅基流动向量与 CosyVoice，再次通用对话的相关词缓存，最后本地拼音。控制台「计分方式」会写明当前用的是哪一种。</p>
       </section>
 
       <section class="card">

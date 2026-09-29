@@ -17,6 +17,7 @@ def _use_llm_env(monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "sk-placeholder")
     monkeypatch.setenv("LLM_MODEL", "glm-5.2")
     monkeypatch.delenv("SILICONFLOW_API_KEY", raising=False)
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
     monkeypatch.setattr("app.config._cache", None)
 
 
@@ -95,6 +96,7 @@ def test_related_cache_roundtrip(tmp_path, monkeypatch):
 
 
 def test_synonym_does_not_win_unless_configured(monkeypatch):
+    monkeypatch.setattr("app.config.minimax_ready", lambda cfg=None: False)
     monkeypatch.setattr("app.config.llm_ready", lambda cfg=None: True)
     monkeypatch.setattr(
         "app.config.load_config",
@@ -121,6 +123,7 @@ def test_synonym_does_not_win_unless_configured(monkeypatch):
 
 
 def test_related_can_win_when_enabled(monkeypatch):
+    monkeypatch.setattr("app.config.minimax_ready", lambda cfg=None: False)
     monkeypatch.setattr("app.config.llm_ready", lambda cfg=None: True)
     monkeypatch.setattr(
         "app.config.load_config",
@@ -135,6 +138,7 @@ def test_related_can_win_when_enabled(monkeypatch):
 
 
 def test_cache_miss_scores_locally_without_http(monkeypatch):
+    monkeypatch.setattr("app.config.minimax_ready", lambda cfg=None: False)
     monkeypatch.setattr("app.config.llm_ready", lambda cfg=None: True)
     monkeypatch.setattr(
         "app.config.load_config",

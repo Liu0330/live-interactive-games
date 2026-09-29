@@ -8,8 +8,24 @@ from typing import Any
 
 from app.paths import CONFIG_PATH, ensure_user_dirs
 
+MINIMAX_VOICES = [
+    {"id": "male-qn-qingse", "label": "青涩青年"},
+    {"id": "male-qn-jingying", "label": "精英青年"},
+    {"id": "female-shaonv", "label": "少女音"},
+    {"id": "female-yujie", "label": "御姐音"},
+    {"id": "female-chengshu", "label": "成熟女声"},
+    {"id": "presenter_male", "label": "男主持人"},
+    {"id": "presenter_female", "label": "女主持人"},
+]
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "siliconflow_api_key": "",
+    "minimax_api_key": "",
+    "minimax_base_url": "https://api.minimaxi.com",
+    "minimax_chat_model": "MiniMax-M3",
+    "minimax_embed_model": "embo-01",
+    "minimax_tts_model": "speech-02-turbo",
+    "minimax_tts_voice": "male-qn-qingse",
     "llm_base_url": "https://codingplan.alayanew.com/v1",
     "llm_api_key": "",
     "llm_model": "glm-5.2",
@@ -148,6 +164,17 @@ def load_config() -> dict[str, Any]:
         env_llm_model = os.environ.get("LLM_MODEL", "").strip()
         if env_llm_model:
             data["llm_model"] = env_llm_model
+        for env_name, key in (
+            ("MINIMAX_API_KEY", "minimax_api_key"),
+            ("MINIMAX_BASE_URL", "minimax_base_url"),
+            ("MINIMAX_CHAT_MODEL", "minimax_chat_model"),
+            ("MINIMAX_EMBED_MODEL", "minimax_embed_model"),
+            ("MINIMAX_TTS_MODEL", "minimax_tts_model"),
+            ("MINIMAX_TTS_VOICE", "minimax_tts_voice"),
+        ):
+            env_value = os.environ.get(env_name, "").strip()
+            if env_value:
+                data[key] = env_value
         _cache = data
         return deepcopy(data)
 
@@ -181,36 +208,86 @@ def llm_ready(cfg: dict[str, Any] | None = None) -> bool:
     return bool(base and key)
 
 
+def minimax_settings(cfg: dict[str, Any] | None = None) -> dict[str, str]:
+    data = cfg or load_config()
+    base = str(data.get("minimax_base_url") or "https://api.minimaxi.com").strip().rstrip("/")
+    return {
+        "base_url": base or "https://api.minimaxi.com",
+        "api_key": str(data.get("minimax_api_key") or "").strip(),
+        "chat_model": str(data.get("minimax_chat_model") or "").strip() or "MiniMax-M3",
+        "embed_model": str(data.get("minimax_embed_model") or "").strip() or "embo-01",
+        "tts_model": str(data.get("minimax_tts_model") or "").strip() or "speech-02-turbo",
+        "tts_voice": str(data.get("minimax_tts_voice") or "").strip() or "male-qn-qingse",
+    }
+
+
+def minimax_ready(cfg: dict[str, Any] | None = None) -> bool:
+    settings = minimax_settings(cfg)
+    return bool(settings["api_key"] and settings["base_url"])
+
+
+def chat_ready(cfg: dict[str, Any] | None = None) -> bool:
+    return minimax_ready(cfg) or llm_ready(cfg)
+
+
+def _voice_info(data: dict[str, Any]) -> dict[str, str]:
+    if minimax_ready(data):
+        return {"voice_mode": "minimax", "voice_mode_label": "MiniMax"}
+    if (data.get("siliconflow_api_key") or "").strip():
+        return {"voice_mode": "cosyvoice", "voice_mode_label": "CosyVoice"}
+    return {"voice_mode": "browser", "voice_mode_label": "浏览器语音"}
+
+
+def _cap_detail(data: dict[str, Any], subject: str) -> str:
+    if data.get("llm_related_can_win"):
+        return f"{subject}已允许模型分直接达到猜中阈值。超时或失败则只用本地拼音+字面。谐音如果本地分已经够高，仍按本地规则判。"
+    return f"{subject}模型分封顶在猜中阈值之下，同义词不会单靠模型分获胜。超时或失败则只用本地拼音+字面。谐音如果本地分已经够高，仍按本地规则判。"
+
+
 def scoring_info(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     data = cfg or load_config()
     has_key = bool((data.get("siliconflow_api_key") or "").strip())
     has_llm = llm_ready(data)
+    has_minimax = minimax_ready(data)
+    voice = _voice_info(data)
+    if has_minimax:
+        return {
+            "has_api_key": has_key,
+            "has_llm": has_llm,
+            "has_minimax": True,
+            "scoring_mode": "minimax_embed",
+            "scoring_mode_label": "MiniMax 向量",
+            "scoring_mode_detail": _cap_detail(data, "后台批量缓存 embo 向量，弹幕即时计分。"),
+            **voice,
+        }
     if has_key:
         return {
             "has_api_key": True,
             "has_llm": has_llm,
+            "has_minimax": False,
             "scoring_mode": "siliconflow_embed",
             "scoring_mode_label": "硅基流动向量",
             "scoring_mode_detail": "向量相似度与本地拼音/字面取较高值，谐音不会丢",
+            **voice,
         }
     if has_llm:
-        if data.get("llm_related_can_win"):
-            detail = "后台预取相关词并缓存，弹幕即时计分。已允许相关词直接达到猜中阈值；超时或失败则只用本地拼音+字面。"
-        else:
-            detail = "后台预取相关词并缓存，弹幕即时计分。相关词分数低于猜中阈值，同义词不会单靠模型分获胜；超时或失败则只用本地拼音+字面。"
         return {
             "has_api_key": False,
             "has_llm": True,
+            "has_minimax": False,
             "scoring_mode": "llm_related",
             "scoring_mode_label": "大模型相关词",
-            "scoring_mode_detail": detail,
+            "scoring_mode_detail": _cap_detail(data, "后台预取相关词并缓存，弹幕即时计分。"),
+            **voice,
         }
     return {
         "has_api_key": False,
         "has_llm": False,
+        "has_minimax": False,
         "scoring_mode": "local_pinyin",
         "scoring_mode_label": "本地拼音+字面",
         "scoring_mode_detail": "未配置 API Key，谐音、相关词表与字形离线计分",
+        **voice,
     }
 
 
@@ -218,12 +295,16 @@ def public_config(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     data = deepcopy(cfg or load_config())
     key = data.get("siliconflow_api_key") or ""
     llm_key = data.get("llm_api_key") or ""
+    mm_key = data.get("minimax_api_key") or ""
     data["has_api_key"] = bool(key)
     data["siliconflow_api_key_masked"] = _mask_key(key)
     data["llm_api_key_masked"] = _mask_key(llm_key)
+    data["minimax_api_key_masked"] = _mask_key(mm_key)
     data.pop("siliconflow_api_key", None)
     data.pop("llm_api_key", None)
+    data.pop("minimax_api_key", None)
     data["chat_models"] = CHAT_MODELS
+    data["minimax_voices"] = MINIMAX_VOICES
     data.update(scoring_info(cfg or load_config()))
     return data
 
